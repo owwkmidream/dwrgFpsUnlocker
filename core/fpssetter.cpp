@@ -5,15 +5,16 @@
 #include <QTimer>
 #include <QObject>
 
-FpsSetter::FpsSetter(DWORD processID):
+FpsSetter::FpsSetter(DWORD pid):
     bad(false),fpsbad(false),
-    processID(processID),
+    processID(pid),
     processHandle(nullptr)
 {
     autoxprocesstimer = new autoxTimerProxy(*this);
-
     openHandle();
-
+    //
+    getAddress();
+    continueautox();//默认自动close
 /*    //句柄实际上就是模块的装入地址
     HMODULE moduleHandle = reinterpret_cast<HMODULE>(moduleBase);
     FARPROC funcAddress = GetProcAddress(moduleHandle, "PyOS_ReadlineFunctionPointer");
@@ -22,9 +23,6 @@ FpsSetter::FpsSetter(DWORD processID):
         ErrorReporter::instance()->receive(ErrorReporter::严重, "无法找到符号");
     }*/
 
-    getAddress();
-
-
 /*    if (!*allocrice)
     {
         SYSTEM_INFO si;
@@ -32,8 +30,6 @@ FpsSetter::FpsSetter(DWORD processID):
         *allocrice = si.dwAllocationGranularity;
     }
     std::cout<<"系统页面粒度"<<*allocrice<<'\n';*/
-
-    continueautox();//默认自动close
 }
 
 FpsSetter::~FpsSetter()
@@ -41,6 +37,7 @@ FpsSetter::~FpsSetter()
     closeHandle();
     delete autoxprocesstimer;
 }
+
 
 bool FpsSetter::setFps(int fps)
 {
@@ -108,5 +105,13 @@ void FpsSetter::pauseautox()
 void FpsSetter::continueautox()
 {
     autoxprocesstimer->timer.start();
+}
+void setter_friend()
+{
+
+}
+extern "C" void call_setter_friend()
+{
+
 }
 

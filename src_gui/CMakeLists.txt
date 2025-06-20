@@ -12,7 +12,7 @@ else()
 endif ()
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Core)
 
 file(GLOB SRC_GUI RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *)
 list(FILTER SRC_GUI EXCLUDE REGEX "^CMakeLists\\.txt$")
@@ -22,6 +22,8 @@ file(GLOB CORE RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CORE_DIR}/*)
 include_directories(${CORE_DIR} .)
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
+#    qt_add_library(address
+#    )
     qt_add_executable(dwrgFpsUnlocker
             MANUAL_FINALIZATION
             ${SRC_GUI}
@@ -32,7 +34,8 @@ endif()
 
 target_compile_definitions(dwrgFpsUnlocker PRIVATE QT_DYNAMIC)
 
-target_link_libraries(dwrgFpsUnlocker PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+#target_link_libraries(address PRIVATE Qt${QT_VERSION_MAJOR}::Core)
+target_link_libraries(dwrgFpsUnlocker PRIVATE Qt${QT_VERSION_MAJOR}::Widgets #[[address]])
 
 set_target_properties(dwrgFpsUnlocker PROPERTIES
         ${BUNDLE_ID_OPTION}
@@ -41,17 +44,14 @@ set_target_properties(dwrgFpsUnlocker PROPERTIES
 )
 
 ########################## DEPLOY via INSTALL ###########################
-set(DEPLOY_DIR ${CMAKE_SOURCE_DIR}/deploy)
-
-if (NOT EXISTS ${DEPLOY_DIR})
-    file(MAKE_DIRECTORY ${DEPLOY_DIR})
-endif ()
 
 set(EXECUTABLE_PATH "$<TARGET_FILE:dwrgFpsUnlocker>")
+set(DEPLOY_DIR ${DEPLOY_DIR}/gui) #子目录的变量修改不会传递给父cmake
 
 add_custom_command(TARGET dwrgFpsUnlocker POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${DEPLOY_DIR}
         COMMAND ${CMAKE_COMMAND} -E copy ${EXECUTABLE_PATH} ${DEPLOY_DIR}
-        COMMENT "Copying executable to deploy directory"
+        COMMENT "Ensuring directory and copying executable to deploy directory"
 )
 
 set(DEPLOY_COMMAND "windeployqt \

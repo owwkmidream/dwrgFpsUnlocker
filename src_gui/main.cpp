@@ -21,7 +21,16 @@ bool initial()
     GetWindowThreadProcessId(targetWindow, &pid);
     std::cout << "找到窗口，进程ID: " << pid << std::endl;
 
-    setter = std::make_unique<FpsSetter>(pid);
+    HMODULE dll = LoadLibraryW(L"address.dll");
+    if(!dll)
+        ErrorReporter::instance()->receive(ErrorReporter::严重, "无法加载address.dll");
+    using GetterRaw = FpsSetter*(*)(DWORD);
+    auto raw_fn = (GetterRaw)GetProcAddress(dll, "CreateInstance");
+    if(!raw_fn)
+        ErrorReporter::instance()->receive(ErrorReporter::严重, "无法于address.dll找到目标函数");
+
+
+    setter = std::unique_ptr<FpsSetter>(raw_fn(pid));
     if (*setter)
         return false;
 
