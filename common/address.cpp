@@ -2,7 +2,7 @@
 // Created by Tofu on 25-6-16.
 //
 
-#include "fpsSetter.h"
+#include "fpssetter.h"
 #include "errreport.h"
 
      bool FpsSetter::getAddress()

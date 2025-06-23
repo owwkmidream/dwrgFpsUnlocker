@@ -1,12 +1,12 @@
 aux_source_directory(. SRC_NOGUI)
 
-file(GLOB CORE RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CORE_DIR}/*)
+file(GLOB COMMON RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${COMMON_DIR}/*)
 
-include_directories(${CORE_DIR} .)
+include_directories(${COMMON_DIR} .)
 
 add_executable(dwrgFpsUnlocker_nogui
         ${SRC_NOGUI}
-        ${CORE}
+        ${COMMON}
 #        ${RES_DIR}/.rc
 )
 

@@ -4,6 +4,7 @@
 
 #ifndef ERRREPORT_H
 #define ERRREPORT_H
+
 #include <QObject>
 #include <QQueue>
 #include <QMutex>
