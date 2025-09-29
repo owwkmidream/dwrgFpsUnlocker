@@ -2,12 +2,13 @@
 #include "fpsdialog.h"
 #include "env.h"
 #include "fpssetter.h"
+#include "version.h"
 
 #include <QMessageBox>
 #include <QTime>
 #include <QRandomGenerator>
 
-Dialog::Dialog(QWidget *parent)
+FpsDialog::FpsDialog(QWidget *parent)
     : QDialog(parent), ui(new Ui::dwrgFpsSetter)
     ,keepupdate(false)
 {
@@ -17,46 +18,45 @@ Dialog::Dialog(QWidget *parent)
 
     frupdatereminder = new QTimer(ui->curframerate);
     frupdatereminder->setInterval(1500);
-    connect(frupdatereminder, &QTimer::timeout, this, &Dialog::updateFR);
+    connect(frupdatereminder, &QTimer::timeout, this, &FpsDialog::updateFR);
 
     tmpreadtimer = new QTimer(ui->curframerate);
     tmpreadtimer->setSingleShot(true);
     tmpreadtimer->setInterval(6500);
-    connect(tmpreadtimer, &QTimer::timeout, this, &Dialog::tempreadreach);
+    connect(tmpreadtimer, &QTimer::timeout, this, &FpsDialog::tempreadreach);
 
     frpalette = ui->curframerate->palette();
 
     checkchangePalette();
 
-    ui->version->setText(VERSION_STRING);
+    ui->version->setText(Version(QString(VERSION_STRING)).toSimple());
 
     checkload();
 
-    connect(ErrorReporter::instance(), &ErrorReporter::report, this, &Dialog::showError);
-
+    connect(ErrorReporter::instance(), &ErrorReporter::report, this, &FpsDialog::showError);
 }
 
-Dialog::~Dialog()
+FpsDialog::~FpsDialog()
 {
     if(ui->autoappradio->isChecked() || std::filesystem::exists("./hipp"))
         saveprofile();
     delete ui;
 }
 
-void Dialog::on_applybutton_pressed()
+void FpsDialog::on_applybutton_pressed()
 {
     setter->setFps(ui->fpscombox->currentText().toInt());
     set2tempread();
     Sleep(QRandomGenerator::global()->bounded(200, 700));
 }
 
-void Dialog::on_curframerate_clicked()
+void FpsDialog::on_curframerate_clicked()
 {
     keepupdate = !keepupdate;
     whileKeepUpdateChange();
 }
 
-void Dialog::updateFR()
+void FpsDialog::updateFR()
 {
     ui->curframerate->setText(QString::number(setter->getFps(), 'f', 1));
 }
@@ -66,7 +66,7 @@ void bootfixup()
 //    system(("tryfix "+std::to_string(DYRCX_P_OFFSET)+ ' ' + "dwrgFpsUnlocker.exe").c_str());
 }
 
-void Dialog::showError(const ErrorReporter::ErrorInfo& einf)
+void FpsDialog::showError(const ErrorReporter::ErrorInfo& einf)
 {
     QMessageBox::critical(this,einf.level,einf.msg);
 //    if (einf.level == "修复")
@@ -76,11 +76,12 @@ void Dialog::showError(const ErrorReporter::ErrorInfo& einf)
 //    }
     if (einf.level == ErrorReporter::严重)
     {
+        qCritical()<<einf.msg;
         emit ErrOccured();
     }
 }
 
-void Dialog::checkchangePalette()
+void FpsDialog::checkchangePalette()
 {
     if(keepupdate)
     {
@@ -94,35 +95,35 @@ void Dialog::checkchangePalette()
     ui->curframerate->setPalette(frpalette);
 }
 
-void Dialog::whileKeepUpdateChange()
+void FpsDialog::whileKeepUpdateChange()
 {
     if (keepupdate)
     {
-        setter->pauseautox();
+        setter->pauseAutoX();
         frupdatereminder->start();
     }
     else
     {
         frupdatereminder->stop();
-        setter->continueautox();
+        setter->continueAutoX();
     }
     checkchangePalette();
 }
 
-void Dialog::set2tempread()
+void FpsDialog::set2tempread()
 {
     keepupdate = true;
     whileKeepUpdateChange();
     tmpreadtimer->start();
 }
 
-void Dialog::tempreadreach()
+void FpsDialog::tempreadreach()
 {
     keepupdate = false;
     whileKeepUpdateChange();
 }
 
-void Dialog::saveprofile()const
+void FpsDialog::saveprofile()const
 {
     hipp = std::make_unique<std::fstream>("./hipp", std::ios::out | std::ios::binary);
     {
@@ -155,7 +156,7 @@ T swapEndian(T value) {
     return swapped;
 }
 
-bool Dialog::checkload() {
+bool FpsDialog::checkload() {
     if(std::filesystem::exists(std::filesystem::path("./hipp")))
     {
         hipp = std::make_unique<std::fstream>("./hipp", std::ios::in | std::ios::binary);
@@ -175,9 +176,7 @@ bool Dialog::checkload() {
             }
             if(uselast)
             {
-//                setFpsValue(fps);
                 ui->fpscombox->setCurrentText(QString::number(fps));
-//                setChecked(uselast);
                 ui->autoappradio->setChecked(uselast);
             }
         }

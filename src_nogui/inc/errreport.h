@@ -4,8 +4,10 @@
 
 #ifndef ERRREPORT_H
 #define ERRREPORT_H
+
 #include <iostream>
 #include <string>
+
 struct ErrorReporter
 {
     static constexpr char 严重[] = "严重";

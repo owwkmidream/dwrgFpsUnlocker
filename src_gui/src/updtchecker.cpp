@@ -1,8 +1,9 @@
 #include "env.h"
 
 #include "errreport.h"
-#include "update_checker.h"
-#include "updateinformer.h"
+#include "updtchecker.h"
+#include "updtdialog.h"
+#include "version.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -14,45 +15,19 @@
 #include <QDir>
 #include <QApplication>
 
-struct Version{
-    uint8_t major;
-    uint8_t minor;
 
-    Version(const QString& vstr)
-    {
-        QString numStr = vstr.mid(1); // Remove 'v'
-        major = numStr.section('.', 0, 0).toInt();
-        minor = numStr.section('.', 1).section('-', 0, 0).toInt();
-    }
-    Version(const std::string& vstr)
-    :Version(QString::fromStdString(vstr))
-    {}
-
-    bool operator <(const Version& right)const
-    {
-        return major != right.major ? major < right.major : minor < right.minor;
-    }
-    bool operator >(const Version& right)const
-    {
-        return major != right.major ? major > right.major : minor > right.minor;
-    }
-
-    operator QString()const{
-        return QString("v%1.%2").arg(major).arg(minor);
-    }
-};
-
-UpdateChecker::UpdateChecker(UpdateInformer &ifm, QObject *parent)
+UpdateChecker::UpdateChecker(UpdateDialog &ifm, QObject *parent)
 :QObject(parent), informer(ifm)
 {
     manager = new QNetworkAccessManager(this);
+
     speedtesttimer = new QTimer(this);
     speedtesttimer->setSingleShot(true);
-    speedtesttimer->setInterval(10*1000);
+    speedtesttimer->setInterval(10*1000);//判断间隔：10s
     connect(speedtesttimer, &QTimer::timeout,[this](){
-        if(this->informer.progressBar->value() < 2)
+        if(this->informer.progressBar->value() < 2)//若进度小于2则判断为过慢
         {
-            this->informer.showManualButton();
+            this->informer.showManualButton();//则提议手动下载
         }
     });
 }
@@ -67,13 +42,14 @@ void UpdateChecker::checkUpdate() {
     );
 
     QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::UserAgentHeader, "dwrgFpsUnlocker(Windows 10; x64)"); // GitHub 要求
+    request.setHeader(QNetworkRequest::UserAgentHeader, "dwrgFpsUnlocker(Windows; x64)"); // GitHub 要求
 
     QNetworkReply* reply = manager->get(request);
 
-    connect(reply, &QNetworkReply::errorOccurred, [=]() {
-        ErrorReporter::instance()->receive(ErrorReporter::警告, "检查更新失败");
-    });
+    //question: 不同用户群的代码调整借助宏判断吗？
+//    connect(reply, &QNetworkReply::errorOccurred, [=]() {
+//        ErrorReporter::instance()->receive(ErrorReporter::警告, "检查更新失败");
+//    });
 
     connect(reply, &QNetworkReply::finished, this, [=]() {
         if(reply->error() != QNetworkReply::NoError)
@@ -82,12 +58,14 @@ void UpdateChecker::checkUpdate() {
             emit noUpdateAvailable();
             return;
         }
+        //查询完成且没有出错的话↓
 
         QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
 
 //        QJsonObject obj = doc.object();
 
-        Version currentVersion = QString(VERSION_STRING); // 你的当前版本（也可以从宏里读取）
+        //question: 为何需要显式转换？
+        Version currentVersion(VERSION_STRING);
         Version latestVersion = currentVersion;
         QJsonArray releases
 #ifdef PRERELEASE
@@ -101,14 +79,20 @@ void UpdateChecker::checkUpdate() {
             if(releaseObj["prerelease"].toBool())
 #endif
             {
-                Version version = releaseObj["tag_name"].toString().section('-', 0, 0);
+                Version version(releaseObj["tag_name"].toString());
                 if(version > latestVersion) {
                     latestVersion = version;
 
                     QJsonArray assets = releaseObj["assets"].toArray();
                     for (const QJsonValue &assetVal : assets) {
                         QJsonObject asset = assetVal.toObject();
-                        if (asset["name"].toString() == "dwrgFpsUnlocker.zip") { // 替换为你的预期文件名
+                        if (asset["name"].toString() ==
+                    #ifdef BUILD_SINGLE
+                                        "dwrgFpsUnlocker.exe"
+                    #else
+                                        "dwrgFpsUnlocker.zip"
+                    #endif
+                            ) {
                             downloadurl = asset["browser_download_url"].toString();
                             break;
                         }
@@ -118,14 +102,12 @@ void UpdateChecker::checkUpdate() {
         }
 
         if (latestVersion > currentVersion) {
-            qDebug() << "Update available:" << latestVersion;
                 informer.set_version(latestVersion);
                 informer.show();
 
                 informer.raise();
                 QApplication::alert(&informer);
         } else {
-            qDebug() << "Already up to date.";
             emit noUpdateAvailable();
         }
 
@@ -136,9 +118,12 @@ void UpdateChecker::checkUpdate() {
 void UpdateChecker::downloadPacakge(const QString &url, const QString &filename) {
     QString saveDirPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/dwrgFpsUnlocker";
     QDir saveDir(saveDirPath);
-    if (!saveDir.exists())
+
+    if (!saveDir.exists()
+        && !saveDir.mkpath(saveDirPath))
     {
-        saveDir.mkpath(saveDirPath);
+        informer.showManualButton();
+        return;
     }
 
     QString savePath = saveDir.filePath(filename);
@@ -159,7 +144,7 @@ void UpdateChecker::downloadPacakge(const QString &url, const QString &filename)
         file->write(reply->readAll());
     });
 
-    connect(reply, &QNetworkReply::downloadProgress, &informer , &UpdateInformer::update_progress);
+    connect(reply, &QNetworkReply::downloadProgress, &informer , &UpdateDialog::update_progress);
 
     connect(reply, &QNetworkReply::finished, [=]() {
         file->flush();
@@ -191,11 +176,11 @@ void UpdateChecker::downloadPacakge(const QString &url, const QString &filename)
 
         if(QProcess::startDetached(
                 saveDir.filePath("updater.exe"),
-                {savePath, QDir::currentPath()},
+                {savePath, QDir::currentPath(), QString::number(QCoreApplication::applicationPid())},
                 nullptr
                 ))
         {
-                    QCoreApplication::quit(); // 退出当前进程
+                    QCoreApplication::quit();
                     return;
         }
         else

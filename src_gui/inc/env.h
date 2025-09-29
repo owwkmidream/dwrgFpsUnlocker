@@ -2,7 +2,7 @@
 #define ENV_H
 
 #include "fpssetter.h"
-#include "update_checker.h"
+#include "updtchecker.h"
 
 #include <QTimer>
 

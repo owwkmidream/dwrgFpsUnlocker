@@ -17,7 +17,7 @@ class dwrgFpsSetter;
 }
 QT_END_NAMESPACE
 
-class Dialog : public QDialog
+class FpsDialog : public QDialog
 {
     Q_OBJECT
     Ui::dwrgFpsSetter *ui;
@@ -29,24 +29,18 @@ class Dialog : public QDialog
 
     QTimer *tmpreadtimer;
 public:
-    Dialog(QWidget *parent = nullptr);
-    ~Dialog();
+    FpsDialog(QWidget *parent = nullptr);
+    ~FpsDialog();
     void setRelativedData(FpsSetter& setter)
     {
         this->setter = &setter;
+        if(ui->autoappradio->isChecked())
+            dobuttonpress();
     }
     void set2tempread();
     void dobuttonpress()
     {
         on_applybutton_pressed();
-    }
-    void setFpsValue(int fps)
-    {
-        ui->fpscombox->setCurrentText(QString::number(fps));
-    };
-    void setChecked(bool checked)
-    {
-        ui->autoappradio->setEnabled(checked);
     }
 
 signals:

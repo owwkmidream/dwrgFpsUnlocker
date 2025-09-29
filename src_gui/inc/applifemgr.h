@@ -9,8 +9,8 @@
 #include <QApplication>
 
 class UpdateChecker;
-class Dialog;
-class UpdateInformer;
+class FpsDialog;
+class UpdateDialog;
 class FpsSetter;
 
 //todo 滥用信号槽？
@@ -20,12 +20,12 @@ class AppLifeManager:public QObject{
     QApplication& app;
     UpdateChecker& udck;
     FpsSetter& setter;
-    Dialog& wMain;
-    UpdateInformer& wInfm;
+    FpsDialog& wMain;
+    UpdateDialog& wInfm;
 
     bool mainclosed, informerclosed;
 public:
-    AppLifeManager(QApplication &a, UpdateChecker& udc, Dialog& wm, UpdateInformer& winf, FpsSetter& setter);
+    AppLifeManager(QApplication &a, UpdateChecker& udc, FpsDialog& wm, UpdateDialog& winf, FpsSetter& setter);
 private slots:
     void mainquitonly();
     void informerquitonly();

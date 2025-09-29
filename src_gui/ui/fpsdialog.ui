@@ -17,7 +17,7 @@
    </font>
   </property>
   <property name="windowTitle">
-   <string>Dialog</string>
+   <string>dwrgFpsUnlocker</string>
   </property>
   <widget class="QComboBox" name="fpscombox">
    <property name="geometry">

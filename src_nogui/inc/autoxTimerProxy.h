@@ -5,9 +5,9 @@
 #ifndef AUTOXTIMERPROXY_H
 #define AUTOXTIMERPROXY_H
 
-#include "../common/fpssetter.h"
+#include "fpssetter.h"
 
-class autoxTimerProxy
+class autoxtimerproxy
 {
 public:
     FpsSetter& fpssetter;
@@ -23,7 +23,7 @@ public:
         }
         void stop(){};
     }timer;
-    autoxTimerProxy(FpsSetter& setter)
+    autoxtimerproxy(FpsSetter& setter)
         : fpssetter(setter), timer(setter)
     {
     }

@@ -23,7 +23,6 @@ inline std::wstring ConvertToWString(const char* str) {
     return wstr;
 }
 
-
 inline uintptr_t GetModuleBaseAddress(DWORD processId, const char* moduleName) {
     uintptr_t moduleBaseAddress = 0;
     std::wstring wmoduleName = ConvertToWString(moduleName);
@@ -58,6 +57,9 @@ uintptr_t getProcAddressEx(HANDLE hProcess, uintptr_t moduleBase, const char* sy
 uintptr_t getProcAddressExBuffered(HANDLE hProcess, uintptr_t moduleBase, const char* symbolName);
 
 bool ModifyMappedData(const std::string& filePath, uintptr_t targetAddress, uintptr_t newValue);
+
+std::wstring PrintProcessGroups();
+
 
 
 #endif //DWRGFPSUNLOCKER_WINAPIUTIL_H

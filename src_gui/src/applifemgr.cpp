@@ -3,12 +3,12 @@
 //
 
 #include "applifemgr.h"
-#include "update_checker.h"
+#include "updtchecker.h"
 #include "fpsdialog.h"
 //#include "updateinformer.h"
 #include "fpssetter.h"
 
-AppLifeManager::AppLifeManager(QApplication &a, UpdateChecker &udc, Dialog &wm, UpdateInformer &winf, FpsSetter& setter) :
+AppLifeManager::AppLifeManager(QApplication &a, UpdateChecker &udc, FpsDialog &wm, UpdateDialog &winf, FpsSetter& setter) :
         app(a), udck(udc), wMain(wm), wInfm(winf), setter(setter)
         ,mainclosed(false), informerclosed(false)
 {
@@ -17,10 +17,10 @@ AppLifeManager::AppLifeManager(QApplication &a, UpdateChecker &udc, Dialog &wm, 
     connect(&udck, &UpdateChecker::noUpdateAvailable, this, &AppLifeManager::informerquitonly);
 
 
-    connect(&wMain, &Dialog::MainWinClose, this, &AppLifeManager::appquit);
-    connect(&wMain, &Dialog::ErrOccured, this, &AppLifeManager::mainquitonly);
+    connect(&wMain, &FpsDialog::MainWinClose, this, &AppLifeManager::appquit);
+    connect(&wMain, &FpsDialog::ErrOccured, this, &AppLifeManager::mainquitonly);
 
-    connect(&wInfm, &UpdateInformer::InformerClose, this, &AppLifeManager::informerquitonly);
+    connect(&wInfm, &UpdateDialog::InformerClose, this, &AppLifeManager::informerquitonly);
 }
 
 void AppLifeManager::mainquitonly() {

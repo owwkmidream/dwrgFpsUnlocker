@@ -10,7 +10,7 @@ namespace Ui {
 class UpdateInformer;
 }
 
-class UpdateInformer : public QDialog
+class UpdateDialog : public QDialog
 {
     Q_OBJECT
 
@@ -19,8 +19,8 @@ class UpdateInformer : public QDialog
     class UpdateChecker *uc;
     bool speedcheck = false;
 public:
-    explicit UpdateInformer(QWidget *parent = nullptr);
-    ~UpdateInformer();
+    explicit UpdateDialog(QWidget *parent = nullptr);
+    ~UpdateDialog();
     void setRelativeData(UpdateChecker& checker)
     {
         uc = &checker;

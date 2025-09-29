@@ -209,3 +209,48 @@ bool ModifyMappedData(const std::string &filePath, uintptr_t targetAddress, uint
 
     return found;
 }
+
+std::wstring PrintProcessGroups() {
+    std::wstring ret;
+
+    HANDLE tokenHandle;
+    DWORD tokenInfoLength = 0;
+    PTOKEN_GROUPS tokenGroups;
+
+    // 打开当前进程的访问令牌
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tokenHandle)) {
+        return L"无法打开进程访问令牌，错误代码：" + std::to_wstring(GetLastError());
+    }
+
+    // 获取组信息的大小
+    GetTokenInformation(tokenHandle, TokenGroups, nullptr, 0, &tokenInfoLength);
+    tokenGroups = (PTOKEN_GROUPS)malloc(tokenInfoLength);
+
+    // 获取完整的组信息
+    if (GetTokenInformation(tokenHandle, TokenGroups, tokenGroups, tokenInfoLength, &tokenInfoLength)) {
+        for (DWORD i = 0; i < tokenGroups->GroupCount; i++) {
+            SID_NAME_USE sidType;
+            TCHAR name[256];
+            TCHAR domain[256];
+            DWORD nameLen = sizeof(name) / sizeof(TCHAR);
+            DWORD domainLen = sizeof(domain) / sizeof(TCHAR);
+
+            // 将 SID 转换为组名
+            if (LookupAccountSid(nullptr, tokenGroups->Groups[i].Sid, name, &nameLen, domain, &domainLen, &sidType)) {
+                std::wstring groupType = (tokenGroups->Groups[i].Attributes & SE_GROUP_ENABLED) ? L"(启用)" : L"(禁用)";
+                ret = std::wstring(L"组名称：") + domain + L"\\" + name + groupType;
+            } else {
+                ret = L"无法解析 SID 为组名，SID：" + std::to_wstring(uintptr_t (tokenGroups->Groups[i].Sid));
+            }
+        }
+    } else {
+        ret = L"获取组信息失败，错误代码：" + std::to_wstring(GetLastError());
+    }
+
+    // 清理
+    free(tokenGroups);
+    CloseHandle(tokenHandle);
+
+    return ret;
+}
+

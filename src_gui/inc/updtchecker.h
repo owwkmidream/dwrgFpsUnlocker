@@ -3,7 +3,7 @@
 #define UPDATE_CHECKER_H
 
 #include "macroes.h"
-#include "updateinformer.h"
+#include "updtdialog.h"
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -18,9 +18,9 @@ Q_OBJECT
 
     QString downloadurl;
     static const QString filename;
-    UpdateInformer& informer;
+    UpdateDialog& informer;
 public:
-    UpdateChecker(UpdateInformer &ifm, QObject *parent = nullptr);
+    UpdateChecker(UpdateDialog &ifm, QObject *parent = nullptr);
 
     void checkUpdate();
 

@@ -1,10 +1,11 @@
 #include "fpssetter.h"
 
-#include "autoxTimerProxy.h"
+#include "autoxtimerproxy.h"
 #include "errreport.h"
 
 #include <QTimer>
-#include <QObject>
+#include <QDebug>
+
 #include <chrono>
 
 FpsSetter::FpsSetter(DWORD pid):
@@ -12,18 +13,17 @@ FpsSetter::FpsSetter(DWORD pid):
    ,processID(pid),processHandle(nullptr)
 //   ,dyrcx(NULL), funcaddr(NULL), preframerateaddr(NULL)
 {
-    autoxprocesstimer = new autoxTimerProxy(*this);
+    qInfo()<<"====初始化FpsSeter========================";
+
+    autoxprocesstimer = new autoxtimerproxy(*this);
     if(!openHandle())
         return;
 
-//    auto t = std::chrono::high_resolution_clock::now();
     getAddress();
-//    auto dulation = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - t).count();
-//    std::cout<<std::dec<<dulation<<" microseconds\n";
 
-    continueautox();//默认自动close
+    continueAutoX();//默认自动close
 
-/*    if (!*allocrice)
+/*  if (!*allocrice)
     {
         SYSTEM_INFO si;
         GetSystemInfo(&si);
@@ -32,17 +32,13 @@ FpsSetter::FpsSetter(DWORD pid):
     std::cout<<"系统页面粒度"<<*allocrice<<'\n';*/
 }
 
-FpsSetter::~FpsSetter()
-{
-    closeHandle();
-    delete autoxprocesstimer;
-}
-
-FpsSetter::FpsSetter(FpsSetter &&right) noexcept :processHandle(right.processHandle)
+//不可拷贝的部分：processHandle（）、autoxtimer（除非可以reset指针）
+FpsSetter::FpsSetter(FpsSetter &&right) noexcept
+:processHandle(right.processHandle)
 {
     delete right.autoxprocesstimer;
     right.autoxprocesstimer = nullptr;
-    autoxprocesstimer = new autoxTimerProxy(*this);
+    autoxprocesstimer = new autoxtimerproxy(*this);
 
     right.processHandle = nullptr;
 
@@ -54,14 +50,13 @@ FpsSetter::FpsSetter(FpsSetter &&right) noexcept :processHandle(right.processHan
     );
 }
 
-
 FpsSetter &FpsSetter::operator=(FpsSetter &&right) noexcept {
     if(this != &right)
     {
         delete autoxprocesstimer;
         delete right.autoxprocesstimer;
         right.autoxprocesstimer = nullptr;
-        autoxprocesstimer = new autoxTimerProxy(*this);
+        autoxprocesstimer = new autoxtimerproxy(*this);
 
         closeHandle();
         processHandle = right.processHandle;
@@ -78,44 +73,62 @@ FpsSetter &FpsSetter::operator=(FpsSetter &&right) noexcept {
     return *this;
 }
 
+FpsSetter::~FpsSetter()
+{
+    closeHandle();
+    delete autoxprocesstimer;
+}
+
 bool FpsSetter::setFps(int fps)
 {
-    if (!(openHandle() && checkHandle()))
+    if (!(openHandle() && checkGameLiving()))
         return false;
 
     double frametime = 1.0/fps;
-
+#ifdef USELOG
+    qInfo()<<"写入帧数到"<<(dyrcx+FRT_OFFSET)<<"..";
+#endif
     if (!WriteProcessMemory(processHandle, (LPVOID)(dyrcx+FRT_OFFSET), &frametime, sizeof(frametime), nullptr)) {
         ErrorReporter::instance()->receive(ErrorReporter::严重,"无法设置帧率");
+        //todo QFatal
         bad = true;
         return false;
     }
 
-    return true;
-}
-
-bool FpsSetter::checkHandle()
-{
-    if (DWORD exitCode; GetExitCodeProcess(processHandle, &exitCode), exitCode != STILL_ACTIVE)
-    {
-        ErrorReporter::instance()->receive(ErrorReporter::严重,"进程似乎已经退出");
+    float framerate = fps;
+    if (!WriteProcessMemory(processHandle, (LPVOID)(dyrcx+0x80), &framerate, sizeof(framerate), nullptr)) {
+        ErrorReporter::instance()->receive(ErrorReporter::严重,"无法设置帧率");
+        //todo QFatal
         bad = true;
         return false;
     }
+
+    if (!WriteProcessMemory(processHandle, (LPVOID)(dyrcx+0x8C), &fps, sizeof(fps), nullptr)) {
+        ErrorReporter::instance()->receive(ErrorReporter::严重,"无法设置帧率");
+        //todo QFatal
+        bad = true;
+        return false;
+    }
+
     return true;
 }
 
 float FpsSetter::getFps()
 {
-    if (fpsbad ||
-        !(
-        openHandle()||checkHandle()
-        )) return 0;
+    //无法获取实时帧率不是致命的
+    if (fpsbad)
+        return 0;
 
+    if (!(
+                openHandle()||checkGameLiving()
+        )) return 0;
+#ifdef USELOG
+    qInfo()<<"从"<<(preframerateaddr+FR_OFFSET)<<"读出实时帧率..";
+#endif
     float framerate;
     if (!ReadProcessMemory(processHandle, (LPVOID)(preframerateaddr+FR_OFFSET), &framerate, sizeof(framerate), nullptr))
     {
-
+        qWarning()<<"读取实时帧率失败："<<GetLastError();
         ErrorReporter::instance()->receive(
                 ErrorReporter::严重,
                 "无法读取帧率值：");
@@ -126,12 +139,28 @@ float FpsSetter::getFps()
     return framerate;
 }
 
+bool FpsSetter::checkGameLiving()
+{
+    if (DWORD exitCode; GetExitCodeProcess(processHandle, &exitCode), exitCode != STILL_ACTIVE)
+    {
+        qCritical()<<"游戏似乎已退出（"<<exitCode<<"）";
+        ErrorReporter::instance()->receive(ErrorReporter::严重,"游戏似乎已经退出");
+        bad = true;
+        return false;
+    }
+    return true;
+}
+
 bool FpsSetter::openHandle()
 {
-    if(processHandle) return true;
+    // question: processHandle的检查是交由调用者还是自己，亦或是防御性
+    if(processHandle)
+        return true;
+
     processHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processID);
     if (!processHandle)
     {
+        qDebug()<<"无法访问进程"<<processID;
         ErrorReporter::instance()->receive(ErrorReporter::严重,"无法访问进程");
         bad = true;
         return false;
@@ -147,12 +176,12 @@ void FpsSetter::closeHandle() {
 }
 
 
-void FpsSetter::pauseautox()
+void FpsSetter::pauseAutoX()
 {
     autoxprocesstimer->timer.stop();
 }
 
-void FpsSetter::continueautox()
+void FpsSetter::continueAutoX()
 {
     autoxprocesstimer->timer.start();
 }
