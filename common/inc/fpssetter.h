@@ -63,6 +63,7 @@ public:
      * 原因：只是因为初始化需要的进程id没写在这里 */ //question: 什么意思？
     FpsSetter(DWORD pid);
     FpsSetter():bad(true), fpsbad(true), processHandle(NULL), autoxprocesstimer(nullptr){};
+    static FpsSetter* create(DWORD pid = NULL);
 
     FpsSetter(const FpsSetter&) = delete;
     FpsSetter& operator=(const FpsSetter&) = delete;
@@ -83,7 +84,7 @@ explicit
     void continueAutoX();
 
 protected:
-    //获取内存地址。但因为反向依赖不知道怎么 todo: 导出为dll
+    //获取内存地址
     bool getAddress();
     //打开或检查访问进程的句柄有效，否则返回false
     bool openHandle();

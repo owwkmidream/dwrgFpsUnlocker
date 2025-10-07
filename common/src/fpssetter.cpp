@@ -31,6 +31,23 @@ FpsSetter::FpsSetter(DWORD pid):
     }
     std::cout<<"系统页面粒度"<<*allocrice<<'\n';*/
 }
+FpsSetter* FpsSetter::create(DWORD pid)
+{
+    if (!pid)
+    {
+        HWND targetWindow = FindWindowW(nullptr, L"第五人格");
+        if (!targetWindow)
+        {
+            qCritical()<<"未找到游戏窗口";
+            ErrorReporter::instance()->receive({ErrorReporter::严重,"未找到第五人格窗口"});
+            return {};
+        }
+
+        GetWindowThreadProcessId(targetWindow, &pid);
+    }
+
+    return new FpsSetter(pid);
+}
 
 //不可拷贝的部分：processHandle（）、autoxtimer（除非可以reset指针）
 FpsSetter::FpsSetter(FpsSetter &&right) noexcept
@@ -90,22 +107,22 @@ bool FpsSetter::setFps(int fps)
 #endif
     if (!WriteProcessMemory(processHandle, (LPVOID)(dyrcx+FRT_OFFSET), &frametime, sizeof(frametime), nullptr)) {
         ErrorReporter::instance()->receive(ErrorReporter::严重,"无法设置帧率");
-        //todo QFatal
+        qCritical()<<"没能写入帧时长)";
         bad = true;
         return false;
     }
 
     float framerate = fps;
     if (!WriteProcessMemory(processHandle, (LPVOID)(dyrcx+0x80), &framerate, sizeof(framerate), nullptr)) {
-        ErrorReporter::instance()->receive(ErrorReporter::严重,"无法设置帧率");
-        //todo QFatal
+        // ErrorReporter::instance()->receive(ErrorReporter::警告,"不完整的帧率设置");
+        qWarning()<<"没能写入帧数(float)";
         bad = true;
         return false;
     }
 
     if (!WriteProcessMemory(processHandle, (LPVOID)(dyrcx+0x8C), &fps, sizeof(fps), nullptr)) {
-        ErrorReporter::instance()->receive(ErrorReporter::严重,"无法设置帧率");
-        //todo QFatal
+        // ErrorReporter::instance()->receive(ErrorReporter::严重,"不完整的帧率设置");
+        qWarning()<<"没能写入帧数(int)";
         bad = true;
         return false;
     }
@@ -123,7 +140,7 @@ float FpsSetter::getFps()
                 openHandle()||checkGameLiving()
         )) return 0;
 
-    qInfo()<<"从"<<std::ios::hex<<(preframerateaddr+FR_OFFSET)<<std::ios::dec<<"读出实时帧率..";
+    qInfo()<<"从"<<Qt::hex<<(preframerateaddr+FR_OFFSET)<<Qt::dec<<"读出实时帧率..";
 
     float framerate;
     if (!ReadProcessMemory(processHandle, (LPVOID)(preframerateaddr+FR_OFFSET), &framerate, sizeof(framerate), nullptr))
