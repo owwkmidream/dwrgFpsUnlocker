@@ -5,7 +5,7 @@
 
 #include <QDesktopServices>
 #include <QLayout>
-#include <QPropertyAnimation>
+#include <QMessageBox>
 #include <QTimer>
 
 UpdateDialog *informer_r = nullptr;
@@ -18,6 +18,8 @@ UpdateDialog::UpdateDialog(QWidget *parent)
     setFixedSize(width(), height());
 
     ui->manual_button->hide();
+
+    connect(ErrorReporter::instance(), &ErrorReporter::report, this, &UpdateDialog::showError, Qt::QueuedConnection);
 }
 
 UpdateDialog::~UpdateDialog()
@@ -86,6 +88,18 @@ void UpdateDialog::update_progress(qint64 bytesReceived, qint64 bytesTotal) {
 void UpdateDialog::on_manual_button_pressed() {
 //    emit InformerClose();
     QDesktopServices::openUrl(QUrl("https://github.com/tearupheyfish/dwrgFpsUnlocker/releases"));
+}
+
+
+void UpdateDialog::showError(const ErrorReporter::ErrorInfo& einf)
+{
+    QMessageBox::critical(this,einf.level,einf.msg);
+    if (einf.level == ErrorReporter::严重)
+    {
+        qCritical()<<einf.msg;
+        // emit ErrOccured();
+        this->close();
+    }
 }
 
 void UpdateDialog::showManualButton() {

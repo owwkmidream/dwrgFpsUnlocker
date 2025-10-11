@@ -6,11 +6,14 @@
 #include "updtdialog.h"
 #include "env.h"
 #include "winapiutil.h"
+#include "gamelistener.h"
 
 #include <QDir>
 #include <QApplication>
-#include <QTranslator>
+#include <QSystemTrayIcon>
 #include <QFile>
+#include <QMenu>
+
 #include <memory>
 
 //@ref DevDoc/logging.cov.md
@@ -84,7 +87,7 @@ int main(int argc, char *argv[])
 {
     switch (argc)
     {
-        case 1 : return main_setter(argc, argv);
+        case 1 : case 2: return main_setter(argc, argv);
         default: return main_update(argc, argv);
     }
 }
@@ -102,20 +105,50 @@ int main_setter(int argc, char *argv[])
     QApplication::setApplicationVersion(VERSION_STRING);
     QApplication::setQuitOnLastWindowClosed(false);//手动管理
 
+    auto ifm{std::make_unique<UpdateDialog>()};
+    auto uc(std::make_unique<UpdateChecker>(*ifm));
+    ifm->setRelativeData(*uc);//todo: 担心引用失效
 
-    std::unique_ptr<FpsDialog> w {FpsDialog::create()};
-    w->show();
+    AppLifeManager lifemgr(app, std::move(ifm));
 
-    UpdateDialog ifm;
-    UpdateChecker uc(ifm);
-    ifm.setRelativeData(uc);
-    ifm.hide();
+    lifemgr.trustee(std::move(uc));
+    //此后的ifm 和 uc 都默认失效了
 
-    AppLifeManager lifemgr(app, uc, *w, ifm);
+    lifemgr.get<UpdateChecker>().checkUpdate();
+
+    ProgStartListener listener;
+    listener.setProcessName("dwrg.exe");
+    listener.setPollInterval(3);
+    //lifemgr是主线程局部变量所以它销毁了事件循环肯定也结束了所以引用它没问题。
+    QObject::connect(&listener, &ProgStartListener::processStarted,[&lifemgr](quint32 pid)
+    {
+        qInfo()<<"检测到游戏启动，pid:"<<pid;
+        QTimer::singleShot(3000, &lifemgr, [&lifemgr,pid]()
+        {
+            std::unique_ptr<FpsDialog> w_{FpsDialog::create(pid)};
+            w_->show();w_->raise();w_->activateWindow();
+            lifemgr.trustee(std::move(w_));
+        });
+    });
+    listener.start();
+
+    auto tray = QSystemTrayIcon();
+    QIcon ico(":/纯彩mini.ico");//todo: 字符编码问题
+    if (ico.isNull())
+    {
+        ErrorReporter::receive(ErrorReporter::警告, "图标资源错误");
+        qWarning()<<"图标资源错误";
+    }
+    else
+    {
+        tray.setIcon(ico);
+        tray.show();
+        QMenu* trayMenu = new QMenu(&lifemgr.get<UpdateDialog>());
+        trayMenu->addAction("退出", &app, &QApplication::quit);
+        tray.setContextMenu(trayMenu);
+    }
+
     // setter的初始化报错时lifemgr需要已经注册信号槽，因此setter必须在lifemgr之后初始化
-
-    uc.checkUpdate();
-
     qInfo()<<"====运行========================";
     return app.exec();
 }
@@ -150,3 +183,7 @@ int main_update(int argc, char *argv[])
     }
     return 0;
 }
+
+//todo: 响应ctrlC
+//todo: 添加进程结束监听
+//todo: 失效setter销毁

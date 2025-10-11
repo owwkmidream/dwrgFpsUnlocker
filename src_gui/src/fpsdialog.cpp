@@ -6,8 +6,6 @@
 
 #include <QHotKey>
 
-#include <QMessageBox>
-#include <QTime>
 #include <QRandomGenerator>
 
 
@@ -47,13 +45,12 @@ FpsDialog::FpsDialog(QWidget *parent)
         else
             on_applybutton_pressed();
     });
-    connect(ErrorReporter::instance(), &ErrorReporter::report, this, &FpsDialog::showError, Qt::QueuedConnection);
 }
 
-FpsDialog* FpsDialog::create()
+FpsDialog* FpsDialog::create(DWORD pid)
 {
     auto w = new FpsDialog;
-    w->setter =FpsSetter::create();
+    w->setter =FpsSetter::create(pid);
     return w;
 }
 
@@ -100,17 +97,6 @@ void FpsDialog::updateFR()
 void bootfixup()
 {
 //    system(("tryfix "+std::to_string(DYRCX_P_OFFSET)+ ' ' + "dwrgFpsUnlocker.exe").c_str());
-}
-
-void FpsDialog::showError(const ErrorReporter::ErrorInfo& einf)
-{
-    QMessageBox::critical(this,einf.level,einf.msg);
-    if (einf.level == ErrorReporter::严重)
-    {
-        qCritical()<<einf.msg;
-        // emit ErrOccured();
-        this->close();
-    }
 }
 
 void FpsDialog::checkchangePalette()

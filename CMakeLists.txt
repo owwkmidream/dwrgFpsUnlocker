@@ -24,6 +24,7 @@ file(GLOB COMMON_DIR "common") #共有目录绝对路径
 file(GLOB RES_DIR "resource")  #资源目录绝对路径
 
 add_subdirectory("updater")
+
 add_subdirectory("src_gui")
 add_subdirectory("src_nogui")
 

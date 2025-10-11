@@ -39,7 +39,7 @@ FpsSetter* FpsSetter::create(DWORD pid)
         if (!targetWindow)
         {
             qCritical()<<"未找到游戏窗口";
-            ErrorReporter::instance()->receive({ErrorReporter::严重,"未找到第五人格窗口"});
+            ErrorReporter::instance()->receive(ErrorReporter::严重,"未找到第五人格窗口");
             return {};
         }
 

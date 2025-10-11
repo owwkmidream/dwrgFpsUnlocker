@@ -1,10 +1,11 @@
 #ifndef UPDATEINFORMER_H
 #define UPDATEINFORMER_H
 
+#include "errreport.h"
+
 #include <QDialog>
 #include <QProgressBar>
 #include <QGraphicsOpacityEffect>
-#include <QPropertyAnimation>
 
 namespace Ui {
 class UpdateInformer;
@@ -33,13 +34,10 @@ public:
 signals:
     void InformerClose();
 
-
-//    QGraphicsOpacityEffect* opaeff;
-//    QPropertyAnimation *opaanim;
-
 private slots:
     void on_updatebutton_pressed(); // 更新进度条进度
     void on_manual_button_pressed();
+    void showError(const ErrorReporter::ErrorInfo&);
 
     void update_progress(qint64 bytesReceived, qint64 bytesTotal);
 
@@ -49,6 +47,7 @@ private slots:
     void showManualButton();
     void hideManualButton();
 
+    //qt的close()实际上是发送CloseEvent然后hide
     void closeEvent(QCloseEvent *) override
     {
         emit InformerClose();

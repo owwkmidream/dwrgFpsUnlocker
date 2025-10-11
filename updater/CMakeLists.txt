@@ -1,7 +1,8 @@
 # updatepack
 
-add_compile_options(/source-charset:utf-8)
-
+if(MSVC)
+    add_compile_options(/source-charset:utf-8)
+endif ()
 find_package(minizip-ng CONFIG REQUIRED)
 link_libraries(MINIZIP::minizip-ng)
 

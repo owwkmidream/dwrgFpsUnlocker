@@ -18,25 +18,44 @@ class FpsSetter;
 class AppLifeManager:public QObject{
     Q_OBJECT
     QApplication& app;
-    UpdateChecker& udck;
-    FpsDialog& wMain;
-    UpdateDialog& wInfm;
+    std::unique_ptr<UpdateChecker> udck;
+    std::unique_ptr<UpdateDialog> inform;
+    std::vector<FpsDialog*> windows;
 
-    bool mainclosed, informerclosed;
+    bool isVsetterX, isifmX;
 public:
-    AppLifeManager(QApplication &a, UpdateChecker& udc, FpsDialog& wm, UpdateDialog& winf);
+    AppLifeManager(QApplication &a, std::unique_ptr<UpdateDialog>&& win4show);
+
+    template<class T>
+    void trustee(std::unique_ptr<T>&& obj);
+    template<class T>
+    T& get();
+
 private slots:
-    void mainquitonly();
-    void informerquitonly();
+    void setterclosed(FpsDialog* that);
+    void informclosed();
     void appquit();
 private:
     void checkShouldQuit()
     {
-        if(mainclosed && informerclosed)
+        if(windows.empty() && isifmX)
         {
             appquit();
         }
     }
 };
+
+template<> inline
+UpdateChecker& AppLifeManager::get()
+{
+    return *udck;
+}
+
+template<> inline
+UpdateDialog& AppLifeManager::get()
+{
+    return *inform;
+}
+
 
 #endif //DWRGFPSUNLOCKER_APPLIFEMGR_H

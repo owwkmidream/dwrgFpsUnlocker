@@ -2,6 +2,7 @@
 
 # 转换COMMON_DIR为相对路径
 file(RELATIVE_PATH COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}" "${COMMON_DIR}")
+file(RELATIVE_PATH RES_DIR "${CMAKE_CURRENT_SOURCE_DIR}" "${RES_DIR}")
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -32,11 +33,19 @@ aux_source_directory("${COMMON_DIR}/src" COMSRC)
 # 在分离ui h的情况下并入ui文件
 list(APPEND CMAKE_AUTOUIC_SEARCH_PATHS "./ui")
 
-qt_add_executable(dwrgFpsUnlocker
+qt6_add_executable(dwrgFpsUnlocker
         MANUAL_FINALIZATION
         ${HEADERS} ${SOURCES}
         ${COMSRC} #comdir/inc
         ${RES_DIR}/.rc
+)
+qt6_add_resources(dwrgFpsUnlocker
+        PREFIX "/"
+        BASE
+            "${RES_DIR}"
+        FILES
+            "${RES_DIR}/纯彩mini.ico"
+        OPTIONS
 )
 
 
@@ -44,7 +53,9 @@ target_link_libraries(dwrgFpsUnlocker PRIVATE
         Qt6::Widgets Qt6::Network
         $<$<BOOL:${GUI_BUILD_SINGLE}>:Qt6Keychain::Qt6Keychain>
         qhotkey
-        yalantinglibs::yalantinglibs)
+        yalantinglibs::yalantinglibs
+        Wbemuuid
+)
 
 set_target_properties(dwrgFpsUnlocker PROPERTIES
         ${BUNDLE_ID_OPTION}

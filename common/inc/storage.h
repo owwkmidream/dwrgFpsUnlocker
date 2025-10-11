@@ -4,6 +4,7 @@
 
 #include <fstream>
 #include <algorithm>
+#include <mutex>
 
 /** 存储布局 */
 #pragma pack(push, 1)
@@ -47,6 +48,8 @@ private:
     inline static const auto keys = ylt::reflection::get_member_names<Layout>();
     const std::string storage_name;
 
+mutable
+        std::mutex _mtx;
 #ifndef GUI_BUILD_SINGLE
 mutable
     std::fstream _file;
@@ -197,6 +200,7 @@ template<class Layout>
     template <auto Member>
     // ylt::reflection::internal::member_tratis<decltype(Member)>::value_type
     auto Storage<Layout>::load() const {
+        std::lock_guard<std::mutex> lock(_mtx);
         using Traits = ylt::reflection::internal::member_tratis<decltype(Member)>;
         using Owner =  Traits::owner_type;
         using FieldT = Traits::value_type;
@@ -208,6 +212,7 @@ template<class Layout>
         _file.seekg(off);
 
         _file.read(reinterpret_cast<char*>(&value), sizeof(FieldT));
+
         return value;
     }
 

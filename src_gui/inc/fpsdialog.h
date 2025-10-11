@@ -1,13 +1,11 @@
 #ifndef FPSDIALOG_H
 #define FPSDIALOG_H
 
-#include "errreport.h"
-
-#include <QDialog>
-
 #include "env.h"
 
 #include "ui_fpsdialog.h"
+
+#include <QDialog>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -29,7 +27,7 @@ class FpsDialog : public QDialog
 
     FpsDialog(QWidget *parent = nullptr);
 public:
-    static FpsDialog* create();
+    static FpsDialog* create(DWORD pid = NULL);
     ~FpsDialog();
 
     void set2tempread();
@@ -38,14 +36,13 @@ public:
         on_applybutton_pressed();
     }
 signals:
-    void MainWinClose();
-    void ErrOccured();
+    void SetterClosed(FpsDialog*);
+    void ErrOccured(FpsDialog*);
+
 private slots:
     void on_applybutton_pressed();
     // void on_applybutton_released() = delete;
     void on_curframerate_clicked();
-
-    void showError(const ErrorReporter::ErrorInfo& einf);
 
 private:
     bool checkload();
@@ -61,7 +58,7 @@ private:
 
     void closeEvent(QCloseEvent* event) override
     {
-        emit MainWinClose();
+        emit SetterClosed(this);
     }
 };
 #endif // FPSDIALOG_H

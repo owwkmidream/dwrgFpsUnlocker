@@ -8,6 +8,7 @@
 #include <QObject>
 #include <QQueue>
 #include <QMutex>
+#include <utility>
 
 class ErrorReporter: public QObject
 {
@@ -21,14 +22,16 @@ public:
     };
     static ErrorReporter* instance();
     void receive(const ErrorInfo& einfo);
-    void receive(QString level, QString msg);
+    static void receive(QString level, QString msg)
+    {
+        instance()->receive({std::move(level), std::move(msg)});
+    }
 signals:
     void report(const ErrorInfo& einfo);
 private:
 explicit
     ErrorReporter(QObject *parent = nullptr);
     QMutex mutex;
-    QQueue<ErrorInfo> errqueue;
 };
 
 #endif
