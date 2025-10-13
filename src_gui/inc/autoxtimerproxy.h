@@ -15,10 +15,10 @@
 class autoxtimerproxy: public QObject
 {
     Q_OBJECT
-public:
-    FpsSetter& belongsto;
     QTimer timer;
-    autoxtimerproxy(FpsSetter& master) : belongsto(master)
+    FpsSetter* belongsto;
+public:
+    autoxtimerproxy(FpsSetter* master) : belongsto(master)
     {
         timer.setSingleShot(true);
         timer.setInterval(15000);
@@ -31,17 +31,28 @@ public:
     autoxtimerproxy(autoxtimerproxy&&) = delete;
     autoxtimerproxy& operator=(autoxtimerproxy&&) = delete;
 
-    ~autoxtimerproxy()
+    ~autoxtimerproxy() override
     {
         timer.stop();
-        timer.disconnect();
+    }
+    bool isRunning() const
+    {
+        return timer.isActive();
+    }
+    void stop()
+    {
+        timer.stop();
+    }
+    void start()
+    {
+        timer.start();
     }
 private slots:
     void xhandlerauto()
     {
-        belongsto.closeHandle();
+        belongsto->closeHandle();
 #ifdef _DEBUG
-        ErrorReporter::instance()->receive("提醒", "句柄关闭定时任务执行。");
+        ErrorReporter::receive("提醒", "句柄关闭定时任务执行。");
 #endif
     }
 };

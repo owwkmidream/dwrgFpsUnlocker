@@ -10,23 +10,26 @@
 class autoxtimerproxy
 {
 public:
-    FpsSetter& fpssetter;
+    FpsSetter* fpssetter;
     struct Timer
     {
-        Timer(FpsSetter& setter)
+        Timer(FpsSetter* setter)
             :fpss(setter)
         {}
-        FpsSetter& fpss;
+        FpsSetter* fpss;
         void start()
         {
             // fpss.closeHandle();
         }
-        void stop(){};
+        void stop()
+        {};
     }timer;
-    autoxtimerproxy(FpsSetter& setter)
+    autoxtimerproxy(FpsSetter* setter)
         : fpssetter(setter), timer(setter)
     {
     }
+    void start(){}
+    void stop(){}
 };
 
 #endif //AUTOXTIMERPROXY_H

@@ -14,7 +14,7 @@
  *            +0x10] ← dyrcx (一段动态内存地址；这样命名只是因为跟踪时用的寄存器几乎都是rcx)
  * [dyrcx+08] + 0x23C  ← 游戏自带检测的帧率地址
  *      ⤒ preframeaddr
- * @ref DevDoc/pointerlink.md
+ * @ref DevDoc/pointerlink.mmd
  */
 class FpsSetter
 {
@@ -39,8 +39,8 @@ protected:
 //  static inline DWORD allocrice = 0;
 
     bool        bad;        //Setter是否可用
-    bool        fpsbad;     //fps是否可读取
-//  bool        autox;      //是否自动关闭句柄
+ // bool        fpsbad;     //fps是否可读取 / 我觉得无意义 --25.10.12
+    bool        keepaccess; //是否自动关闭句柄
     DWORD       processID;
     HANDLE      processHandle;
     uintptr_t   moduleBase;
@@ -62,8 +62,9 @@ public:
     /* 禁止拷贝的三-五，
      * 原因：只是因为初始化需要的进程id没写在这里 */ //question: 什么意思？
     FpsSetter(DWORD pid);
-    FpsSetter():bad(true), fpsbad(true), processHandle(NULL), autoxprocesstimer(nullptr){};
-    static FpsSetter* create(DWORD pid = NULL);
+    FpsSetter():bad(true), processHandle(NULL),autoxprocesstimer(nullptr), processID(0){}
+
+    static FpsSetter create(DWORD pid = 0);
 
     FpsSetter(const FpsSetter&) = delete;
     FpsSetter& operator=(const FpsSetter&) = delete;
@@ -76,12 +77,18 @@ public:
 explicit
     operator bool()const{return !bad;}
 
+    DWORD getGamePID()const//question: 破坏封装吗？
+    {
+        return processID;
+    }
+
+    //读写前需要判断bad
     float getFps();
     bool setFps(int fps);
 
-    //autox: 自动脱离(停止访问并释放句柄)
-    void pauseAutoX();
-    void continueAutoX();
+    //自动脱离(停止访问并释放句柄)
+    void keepAccessible();
+    void autoRelease();
 
 protected:
     //获取内存地址
@@ -90,6 +97,7 @@ protected:
     bool openHandle();
     void closeHandle();
     bool checkGameLiving();
+    void bebad();
 
       /* 最初需要的分配jmp的就近x86地址的函数。麻烦IDE折叠一下
     LPVOID findnearfreememory(uintptr_t target_vmemaddr, size_t size)

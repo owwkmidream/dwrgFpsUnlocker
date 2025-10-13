@@ -8,20 +8,23 @@
 
 #include <chrono>
 
+#include "winapiutil.h"
+
 FpsSetter::FpsSetter(DWORD pid):
-    bad(false),fpsbad(false)
-   ,processID(pid),processHandle(nullptr)
-//   ,dyrcx(NULL), funcaddr(NULL), preframerateaddr(NULL)
+    bad(false),processID(pid),processHandle(NULL),keepaccess(false)
+   ,autoxprocesstimer(new autoxtimerproxy(this))
 {
+    if (!pid)
+        return;
     qInfo()<<"====初始化FpsSeter========================";
 
-    autoxprocesstimer = new autoxtimerproxy(*this);
     if(!openHandle())
         return;
 
-    getAddress();
+    if (!getAddress())
+        return;
 
-    continueAutoX();//默认自动close
+    autoRelease();//默认自动close
 
 /*  if (!*allocrice)
     {
@@ -31,39 +34,40 @@ FpsSetter::FpsSetter(DWORD pid):
     }
     std::cout<<"系统页面粒度"<<*allocrice<<'\n';*/
 }
-FpsSetter* FpsSetter::create(DWORD pid)
+
+FpsSetter FpsSetter::create(DWORD pid)
 {
+    qDebug()<<"创建FpsSetter类，用的pid"<<pid<<"，当前线程"<<Qt::hex<<GetCurrentThreadId();
     if (!pid)
     {
-        HWND targetWindow = FindWindowW(nullptr, L"第五人格");
-        if (!targetWindow)
+        // HWND hwd;
+        auto hwd = queryTopCognWindow(L"第五人格");
+        if (!hwd)
         {
-            qCritical()<<"未找到游戏窗口";
-            ErrorReporter::instance()->receive(ErrorReporter::严重,"未找到第五人格窗口");
-            return {};
+                qCritical()<<"未找到游戏窗口";
+                ErrorReporter::receive(ErrorReporter::警告,"未找到第五人格窗口");
+                return {};
         }
 
-        GetWindowThreadProcessId(targetWindow, &pid);
+        GetWindowThreadProcessId(hwd, &pid);
     }
 
-    return new FpsSetter(pid);
+    return {pid};
 }
-
 //不可拷贝的部分：processHandle（）、autoxtimer（除非可以reset指针）
 FpsSetter::FpsSetter(FpsSetter &&right) noexcept
-:processHandle(right.processHandle)
+:autoxprocesstimer{new autoxtimerproxy(this)}
 {
-    delete right.autoxprocesstimer;
-    right.autoxprocesstimer = nullptr;
-    autoxprocesstimer = new autoxtimerproxy(*this);
+    // 这些都留着，是给析构函数做的
+    // delete right.autoxprocesstimer;right.autoxprocesstimer = nullptr;
+    // right.closeHandle();
+    processHandle = right.processHandle;right.processHandle = NULL;
 
-    right.processHandle = nullptr;
-
-    std::tie(bad, fpsbad, processID, moduleBase, funcaddr, dyrcx)
+    std::tie(bad, keepaccess, processID, moduleBase, funcaddr, dyrcx, preframerateaddr)
             = std::make_tuple(
-            std::move(right.bad), std::move(right.fpsbad),
+            std::move(right.bad),std::move(right.keepaccess),
             std::move(right.processID), std::move(right.moduleBase),
-            std::move(right.funcaddr), std::move(dyrcx)
+            std::move(right.funcaddr), std::move(right.dyrcx), std::move(right.preframerateaddr)
     );
 }
 
@@ -71,17 +75,16 @@ FpsSetter &FpsSetter::operator=(FpsSetter &&right) noexcept {
     if(this != &right)
     {
         delete autoxprocesstimer;
-        delete right.autoxprocesstimer;
-        right.autoxprocesstimer = nullptr;
-        autoxprocesstimer = new autoxtimerproxy(*this);
-
         closeHandle();
-        processHandle = right.processHandle;
-        right.processHandle = nullptr;
 
-        std::tie(bad, fpsbad, processID, moduleBase, funcaddr, dyrcx, preframerateaddr)
+        // delete right.autoxprocesstimer;right.autoxprocesstimer = nullptr;
+        //接管句柄，防止被右侧销毁掉
+        processHandle = right.processHandle;right.processHandle = NULL;
+
+        autoxprocesstimer = new autoxtimerproxy(this);
+        std::tie(bad, keepaccess, processID, moduleBase, funcaddr, dyrcx, preframerateaddr)
                 = std::make_tuple(
-                std::move(right.bad), std::move(right.fpsbad),
+                std::move(right.bad), std::move(right.keepaccess),
                 std::move(right.processID), std::move(right.moduleBase),
                 std::move(right.funcaddr), std::move(right.dyrcx), std::move(right.preframerateaddr)
                 /* 2025.6.26： dyrcx和pfraddr没有move右侧的(right.~)，因此额外花费2h，记一笔*/
@@ -98,17 +101,19 @@ FpsSetter::~FpsSetter()
 
 bool FpsSetter::setFps(int fps)
 {
-    if (!(openHandle() && checkGameLiving()))
+    if (!openHandle()) //如果不持有则尝试申请. 判断bad是上层的责任
         return false;
+    // checkGameLiving();
 
+    //写入失败则标记bad
     double frametime = 1.0/fps;
-#ifdef USELOG
+#ifdef USE_LOG
     qInfo()<<"写入帧数到"<<(dyrcx+FRT_OFFSET)<<"..";
 #endif
     if (!WriteProcessMemory(processHandle, (LPVOID)(dyrcx+FRT_OFFSET), &frametime, sizeof(frametime), nullptr)) {
-        ErrorReporter::instance()->receive(ErrorReporter::严重,"无法设置帧率");
+        ErrorReporter::receive(ErrorReporter::警告,"无法设置帧率");
         qCritical()<<"没能写入帧时长)";
-        bad = true;
+        bebad();
         return false;
     }
 
@@ -116,14 +121,14 @@ bool FpsSetter::setFps(int fps)
     if (!WriteProcessMemory(processHandle, (LPVOID)(dyrcx+0x80), &framerate, sizeof(framerate), nullptr)) {
         // ErrorReporter::instance()->receive(ErrorReporter::警告,"不完整的帧率设置");
         qWarning()<<"没能写入帧数(float)";
-        bad = true;
+        bebad();
         return false;
     }
 
     if (!WriteProcessMemory(processHandle, (LPVOID)(dyrcx+0x8C), &fps, sizeof(fps), nullptr)) {
         // ErrorReporter::instance()->receive(ErrorReporter::严重,"不完整的帧率设置");
         qWarning()<<"没能写入帧数(int)";
-        bad = true;
+        bebad();
         return false;
     }
 
@@ -132,37 +137,46 @@ bool FpsSetter::setFps(int fps)
 
 float FpsSetter::getFps()
 {
-    //无法获取实时帧率不是致命的
-    if (fpsbad)
+    if (!openHandle())
         return 0;
-
-    if (!(
-                openHandle()||checkGameLiving()
-        )) return 0;
 
     qInfo()<<"从"<<Qt::hex<<(preframerateaddr+FR_OFFSET)<<Qt::dec<<"读出实时帧率..";
 
-    float framerate;
+    float framerate{0};
     if (!ReadProcessMemory(processHandle, (LPVOID)(preframerateaddr+FR_OFFSET), &framerate, sizeof(framerate), nullptr))
     {
         qWarning()<<"读取实时帧率失败："<<GetLastError();
-        ErrorReporter::instance()->receive(
-                ErrorReporter::严重,
-                "无法读取帧率值：");
-        fpsbad = true;
+        ErrorReporter::receive(ErrorReporter::警告, "无法读取帧率值：");
+        bebad();
         return 0;
     }
 
     return framerate;
 }
 
+void FpsSetter::keepAccessible()
+{
+    keepaccess = true;
+    openHandle();//保持句柄持有
+    autoxprocesstimer->stop();
+}
+
+void FpsSetter::autoRelease()
+{
+    if (bad)
+        return;
+    keepaccess = false;
+    autoxprocesstimer->start();
+}
+
+
 bool FpsSetter::checkGameLiving()
 {
     if (DWORD exitCode; GetExitCodeProcess(processHandle, &exitCode), exitCode != STILL_ACTIVE)
     {
         qCritical()<<"游戏似乎已退出（"<<exitCode<<"）";
-        ErrorReporter::instance()->receive(ErrorReporter::严重,"游戏似乎已经退出");
-        bad = true;
+        ErrorReporter::receive(ErrorReporter::严重,"游戏似乎已经退出");
+        bebad();
         return false;
     }
     return true;
@@ -178,30 +192,26 @@ bool FpsSetter::openHandle()
     if (!processHandle)
     {
         qCritical()<<"无法访问进程"<<processID;
-        ErrorReporter::instance()->receive(ErrorReporter::严重,"无法访问进程");
-        bad = true;
+        ErrorReporter::receive(ErrorReporter::严重,"无法访问进程");
+        bebad();
         return false;
     }
     return true;
 }
 
-void FpsSetter::closeHandle() {
+inline void FpsSetter::closeHandle() {
     if(processHandle){
         CloseHandle(processHandle);
-        processHandle = nullptr;
+        processHandle = NULL;
     }
 }
 
-
-void FpsSetter::pauseAutoX()
+inline void FpsSetter::bebad()
 {
-    autoxprocesstimer->timer.stop();
+    closeHandle();
+    bad = true;
+    keepaccess = false;
+    autoxprocesstimer->stop();
 }
-
-void FpsSetter::continueAutoX()
-{
-    autoxprocesstimer->timer.start();
-}
-
 
 

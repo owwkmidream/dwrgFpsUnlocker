@@ -23,7 +23,7 @@ bool FpsSetter::getAddress() {
     //获取模块地址
     moduleBase = GetModuleBaseAddress(processID, targetModuleName);
     if (!moduleBase) {
-        ErrorReporter::instance()->receive(ErrorReporter::严重, "无法找到模块基址");
+        ErrorReporter::receive(ErrorReporter::严重, "无法找到模块基址");
         bad = true;
         return false;
     }
@@ -33,7 +33,7 @@ bool FpsSetter::getAddress() {
     auto t = clock();
     funcaddr = getProcAddressExBuffered(processHandle, moduleBase, funcname);
     if (!funcaddr) {
-        ErrorReporter::instance()->receive(ErrorReporter::严重, "无法查询符号");
+        ErrorReporter::receive(ErrorReporter::严重, "无法查询符号");
         bad = true;
         return false;
     }
@@ -42,7 +42,7 @@ bool FpsSetter::getAddress() {
     //读取dyrcx
     if (!ReadProcessMemory(processHandle, (LPCVOID) DYRCX_P_OFFSET, &dyrcx, sizeof(dyrcx),
                            nullptr)) {
-        ErrorReporter::instance()->receive(ErrorReporter::严重, "无法获取数组指针");
+        ErrorReporter::receive(ErrorReporter::严重, "无法获取数组指针");
         qCritical()<<"读取"<<Qt::hex<<processHandle<<"::"<<(DYRCX_P_OFFSET)<<"失败："<<GetLastError();
         bad = true;
         return false;
@@ -50,7 +50,7 @@ bool FpsSetter::getAddress() {
     //还是dyrcx
     if (!ReadProcessMemory(processHandle, (LPCVOID) (dyrcx + DYRCX_O_OFFSET), &dyrcx, sizeof(dyrcx),
                            nullptr)) {
-        ErrorReporter::instance()->receive(ErrorReporter::严重, "无法获取数组指针");
+        ErrorReporter::receive(ErrorReporter::严重, "无法获取数组指针");
         qCritical()<<"读取"<<Qt::hex<<(dyrcx+DYRCX_O_OFFSET)<<"失败："<<GetLastError();
         bad = true;
         return false;
@@ -60,9 +60,10 @@ bool FpsSetter::getAddress() {
     //读取pfraddr
     if (!ReadProcessMemory(processHandle, (LPCVOID) (dyrcx + PFR_OFFSET), &preframerateaddr, sizeof(preframerateaddr),
                            nullptr)) {
-        ErrorReporter::instance()->receive(ErrorReporter::警告, "无法获取帧率所在内存段的指针");
+        ErrorReporter::receive(ErrorReporter::警告, "无法获取帧率所在内存段的指针");
         qCritical()<<"读取"<<Qt::hex<<(dyrcx+PFR_OFFSET)<<"失败："<<GetLastError();
-        fpsbad = true;
+        bad = true;
+        return false;
     } else
         qInfo() << "帧率地址: " << Qt::hex << preframerateaddr + FR_OFFSET;
 
