@@ -5,6 +5,8 @@
 #ifndef DWRGFPSUNLOCKER_VERSION_H
 #define DWRGFPSUNLOCKER_VERSION_H
 
+#include "macroes.h"
+
 #include <QRegularExpression>
 #include <QString>
 

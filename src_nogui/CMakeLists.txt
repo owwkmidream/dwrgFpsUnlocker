@@ -12,7 +12,10 @@ add_executable(dwrgFpsUnlocker_nogui
 )
 
 target_compile_options(dwrgFpsUnlocker_nogui PRIVATE /utf-8)
-target_compile_definitions(dwrgFpsUnlocker_nogui PRIVATE UNICODE _UNICODE)
+target_compile_definitions(dwrgFpsUnlocker_nogui PRIVATE
+        UNICODE _UNICODE
+        $<$<BOOL:${BUILD_SINGLE}>:BUILD_SINGLE>
+)
 
 target_link_libraries(dwrgFpsUnlocker_nogui PRIVATE yalantinglibs::yalantinglibs)
 set_target_properties(

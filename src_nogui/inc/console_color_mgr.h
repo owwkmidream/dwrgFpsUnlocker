@@ -7,13 +7,19 @@
 
 #include <windows.h>
 
-class ConsoleStyleManager {
+class ConsoleStyleManager
+{
 private:
-    HANDLE hConsole; // 控制台句柄
+    HANDLE hConsole;// 控制台句柄
     WORD defaultAttributes; // 控制台的默认输出风格
 
 public:
-    ConsoleStyleManager() {
+    WORD queryDefault()
+    {
+        return defaultAttributes;
+    }
+    ConsoleStyleManager()
+    {
         hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
         // 保存当前控制台的输出风格
         CONSOLE_SCREEN_BUFFER_INFO csbi;
@@ -22,18 +28,28 @@ public:
     }
 
     // 设置控制台输出颜色
-    void setStyle(WORD attributes) {
-        SetConsoleTextAttribute(hConsole, attributes);
+    ConsoleStyleManager& setStyle(WORD attributes) {
+        SetConsoleTextAttribute(hConsole, attributes ? attributes : defaultAttributes);
+        return *this;
+    }
+    ConsoleStyleManager& operator()(WORD attributes)
+    {
+        return setStyle(attributes);
     }
 
     // 恢复控制台默认颜色
-    void resetStyle() {
+    ConsoleStyleManager& resetStyle() {
         SetConsoleTextAttribute(hConsole, defaultAttributes);
+        return *this;
     }
 
     // 析构函数，自动恢复控制台默认颜色
     ~ConsoleStyleManager() {
         resetStyle();
+    }
+    friend std::ostream& operator<<(std::ostream& os, const ConsoleStyleManager& consoleStyleManager)
+    {
+        return os;
     }
 };
 

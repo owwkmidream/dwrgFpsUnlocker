@@ -8,22 +8,16 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-if(MSVC )
-    if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_options(/GL /O1) #连同所有依赖都加了个/GL，只是从17MB减小到16.9MB，我真不行了吧 --25.10.6
-        add_link_options(/OPT:REF /OPT:ICF /LTCG)
-    endif()
+if (MSVC AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(/Os /Oy /Ob0 /Gy)
+    add_link_options(/OPT:REF /OPT:ICF /LTCG /INCREMENTAL:NO /MERGE:.rdata=.text)
 endif ()
 
-if(GUI_BUILD_SINGLE)
-    find_package(Qt6Keychain CONFIG REQUIRED)
-    add_compile_definitions(GUI_BUILD_SINGLE)#为了不影响nogui的storage编译
-endif ()
-find_package(Qt6 REQUIRED COMPONENTS Widgets Core Network)
+find_package(Qt6 CONFIG REQUIRED COMPONENTS Widgets Core Network)
+check_qt_build_type(${BUILD_SINGLE})
+find_package(QHotKey CONFIG REQUIRED)
 add_compile_definitions(NOMINMAX)#windows.h的minmax宏和ylt打架
 find_package(yalantinglibs CONFIG REQUIRED)
-find_package(QHotKey CONFIG REQUIRED)
-
 
 include_directories("${COMMON_DIR}/inc" "./inc")
 
@@ -48,10 +42,13 @@ qt6_add_resources(dwrgFpsUnlocker
         OPTIONS
 )
 
-
+target_compile_definitions(dwrgFpsUnlocker PRIVATE
+        $<$<BOOL:${BUILD_SINGLE}>:BUILD_SINGLE>
+        $<$<BOOL:${USE_LOG}>:USE_LOG>
+        $<$<BOOL:${PRE_RELEASE}>:PRE_RELEASE>
+)
 target_link_libraries(dwrgFpsUnlocker PRIVATE
         Qt6::Widgets Qt6::Network
-        $<$<BOOL:${GUI_BUILD_SINGLE}>:Qt6Keychain::Qt6Keychain>
         qhotkey
         yalantinglibs::yalantinglibs
         Wbemuuid
@@ -66,26 +63,27 @@ set_target_properties(dwrgFpsUnlocker PROPERTIES
 
 
 ########################## DEPLOY via INSTALL ###########################
-if(${GUI_BUILD_SINGLE})
+if(${BUILD_SINGLE})
     set(DEPLOY_DIR "${DEPLOY_DIR}/sgui")
 else()
     set(DEPLOY_DIR "${DEPLOY_DIR}/gui")
 endif()
 
 
-installmsg("### Preparing deployment directory...")
-install(CODE "
-        file(REMOVE_RECURSE \"${DEPLOY_DIR}\")
-        file(MAKE_DIRECTORY \"${DEPLOY_DIR}\")
-")
+    installmsg("### Preparing deployment directory...")
+    install(CODE "
+            file(REMOVE_RECURSE \"${DEPLOY_DIR}\")
+            file(MAKE_DIRECTORY \"${DEPLOY_DIR}\")
+    ")
 
-installmsg("### Installing executable...")
-install(TARGETS dwrgFpsUnlocker DESTINATION "${DEPLOY_DIR}")
-if(NOT GUI_BUILD_SINGLE)
+    installmsg("### Installing executable...")
+    install(TARGETS dwrgFpsUnlocker DESTINATION "${DEPLOY_DIR}")
+
+if(NOT BUILD_SINGLE)
     set(DEPLOY_COMMAND "windeployqt \
-    --release --no-compiler-runtime --no-system-d3d-compiler --no-system-dxc-compiler \
+    --debug --no-compiler-runtime --no-system-d3d-compiler --no-system-dxc-compiler \
     --no-translations --add-plugin-types  platforms \
-    --dir ${DEPLOY_DIR} ${EXECUTABLE_PATH}")
+    --dir ${DEPLOY_DIR} $<TARGET_FILE:dwrgFpsUnlocker>")
 
     installmsg("Running windeployqt6 for deployment...")
     install(CODE "

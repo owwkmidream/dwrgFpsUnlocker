@@ -5,7 +5,7 @@
 #include "storage.h"
 
 #include "fpssetter.h"
-#include "console_color_mgr.h"
+#include "realtime_input.h"
 
 #include <filesystem>
 #include <fstream>
@@ -13,133 +13,112 @@
 #include <limits>
 #include <thread>
 
+
 int main()
 {
     system("chcp 65001");
+    std::cout<<std::setiosflags(std::ios::fixed)<<std::setprecision(2);
 
-    HWND targetWindow = FindWindowW(nullptr, L"第五人格");
-    if (!targetWindow)
+    auto setter = FpsSetter::create();
+    if (!setter)
     {
-       std::cerr<<"未找到第五人格窗口...\n";
-       Sleep(1500);
-       return -1;
+        std::cerr<<"未找到第五人格窗口...\n";
+        Sleep(1500);
+        return -1;
     }
 
-    DWORD pid;
-    GetWindowThreadProcessId(targetWindow, &pid);
-    std::cout << "找到窗口，进程ID: " << pid << std::endl;
-
-    FpsSetter setter(pid);
     ConsoleStyleManager csm;
 
-    auto repeat_fps = [&]()
+    auto repeat_fps = [&](int times = 5)
     {
-        int time(5);
-
         csm.setStyle(FOREGROUND_GREEN);
-        while (time--)
+        while (--times)
         {
             std::cout<<setter.getFps();
             Sleep(1000);
             std::cout<<'\r';
         }
-        csm.resetStyle();
+        std::cout<<setter.getFps()<<'\r';
     };
 
     int fps = 60;
     bool havensettle = false;
-    Storage<hipp> hipp;
-    if (hipp.exist())
+    using Hipp = Storage<hipp,"hipp">;
+    if (Hipp::exist())
     {
-        if (!hipp)
+        if (!Hipp::available())
         {
             std::cerr << "打不开文件 hipp..\n";
             Sleep(1500);
             exit(-5);
         }
-        fps = hipp.load<&hipp::fps>();
+        fps = Hipp::load<&hipp::fps>();
         setter.setFps(fps);
         havensettle = true;
-        std::cout<<"自动设置上次的帧率值: ";
-        csm.setStyle(FOREGROUND_GREEN);;
-        std::cout<<std::dec<<fps<<'\n';
-        csm.resetStyle();
+        std::cout<<"自动设置上次的帧率值: "<<csm(FOREGROUND_GREEN)<<fps<<'\n';
         repeat_fps();
+        csm.resetStyle();
     }
-    // if (std::filesystem::exists(std::filesystem::path("./hipp")))
-    // {
-    //     std::fstream file("./hipp", std::ios::in | std::ios::binary);
-    //     if (!file)
-    //     {
-    //         std::cerr << "打不开文件 hipp..\n";
-    //         Sleep(1500);
-    //         exit(-5);
-    //     }
-    //     file.read((char*)&fps, sizeof(fps));
-    //     setter.setFps(fps);
-    //     std::cout<<"自动设置上次的帧率值: ";
-    //     csm.setStyle(FOREGROUND_GREEN);;
-    //     std::cout<<std::dec<<fps<<'\n';
-    //     csm.resetStyle();
-    //     cycle_print_fps();
-    //     file.close();
-    // }
 
-    std::atomic_bool receive_input(false), bad_input(false);
-//    std::cout<<"输入期望帧率的正整数值并回车：";
+    enum INPUT_STATE{YET, TYPING, RETURN} input_state = YET;
+
+    auto ci = new ConsoleInput(csm, FOREGROUND_INTENSITY, NULL,
+            [&input_state] {input_state = TYPING;});
+
     std::thread inputThread([&]() {
         if (havensettle)
             csm.setStyle(FOREGROUND_INTENSITY);
-        std::cout << "输入期望帧率的正整数值并回车：";
-        bad_input = bool(std::cin>>fps);
+
+        fps = ci->input("输入期望帧率的正整数值并回车：");
+
+        delete ci;
+        ci = nullptr;
+
+        if (fps != -1)
+            input_state = RETURN;
+
         csm.resetStyle();
-        if (bad_input)
-        {
-            std::cout<<"没看懂..请检查输入？";
-            bad_input = true;
-            return;
-        }
-        std::cout<<'\r'<<"输入期望帧率的正整数值并回车："<<fps<<'\n';
-        receive_input = true;
     });
 
     int timeout = 5*2; // 超时时间（秒）
-    for (int i = 0; i < timeout; ++i)
+    for (int i = 0; input_state == TYPING || i< timeout; ++i)
     {
-        if (receive_input || bad_input)
-            break;
         std::this_thread::sleep_for(std::chrono::milliseconds (500));
     }
-
-    if (!receive_input)
+    //question: 但是我们会在YET的时候超时quit，这种情况下是要退堂的
+    //          我们有办法区分timeout是yet还是typing呢？
+    if (input_state != RETURN)//出来可能是因为超时
     {
-        if(!bad_input)
-            std::cout << "\n(－_－)"<<std::flush;
+        ci->force_exit();
         if (inputThread.joinable())
-            inputThread.detach(); // 分离子线程，确保程序退出
+            inputThread.join();
+    }
+
+    if (input_state == YET)
+    {
+        csm.resetStyle();
+        std::cout << "\n(－_－)"<<std::flush;
+        if (inputThread.joinable())
+        {
+            inputThread.join(); // 分离子线程，确保程序退出
+        }
         Sleep(1500);
         std::cout<<"，退堂！"<<std::flush;
         Sleep(500);
-        return 0;
     }
-
-    setter.setFps(fps);
-    repeat_fps();
-
-    if (hipp)
+    else if (input_state == RETURN)
     {
-        hipp.save<&hipp::fps>(fps);
-        hipp.save<&hipp::checked>(true);
+        setter.setFps(fps);
+        repeat_fps();
+
+        Hipp::save<&hipp::fps>(fps);
+        if (Hipp::available() && Hipp::load<&hipp::checked>())
+            Hipp::dosave();
+
+        std::cout<<'\n';
+        inputThread.join();
+        Sleep(2000);
     }
-    // std::ofstream file("./hipp", std::ios::out | std::ios::binary);
-    // file.write((char*)&fps, sizeof(fps));
-    // bool b = true;
-    // file.write((char*)&b, sizeof(b));
-
-    std::cout<<'\n';
-    Sleep(2000);
-
-    inputThread.join();
 
     return 0;
 }
