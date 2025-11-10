@@ -1,0 +1,39 @@
+sequenceDiagram
+    主事件循环 ->> 窗口: 创建
+    窗口 ->> 存储: IO请求
+    create participant io事件循环
+    存储 -->> io事件循环 : (没有则创建)
+    io事件循环 ->> io事件循环 : 事件循环
+
+    create participant QtKeychain
+    存储 -->> QtKeychain : 创建
+    存储 --) io事件循环 : 委托
+    activate io事件循环
+par 同步等待
+    存储 ->> 存储 : 等待信号量
+and
+    io事件循环 ->> QtKeychain : start
+    QtKeychain ->> io事件循环 : 队列添加dostart
+    io事件循环 ->> QtKeychain : dostart
+    QtKeychain ->> io事件循环 : finished
+end
+    io事件循环 -->> 存储 : 释放信号量
+    deactivate io事件循环
+    io事件循环 ->> io事件循环 : 事件循环...
+
+    destroy QtKeychain
+    存储 --x QtKeychain: 销毁
+    存储 ->> 窗口 : 返回结果
+    窗口 ->> 窗口 : 继续创建的下一步...
+
+    box 主线程
+        participant  主事件循环
+        participant  窗口
+        participant  存储
+    end
+    box io线程
+        participant io事件循环
+        participant QtKeychain
+    end
+
+

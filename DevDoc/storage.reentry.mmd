@@ -1,0 +1,17 @@
+sequenceDiagram
+    actor  用户
+    participant 事件循环
+    用户 ->> 事件循环: 关闭窗口
+    participant 窗口
+    事件循环 ->> 窗口: 销毁
+    participant 存储
+    窗口 ->> 存储 : save
+    存储 ->> 存储 : 写锁
+    participant QtKeychain
+    存储 ->> QtKeychain:start
+    QtKeychain ->> 事件循环: 队列添加dostart
+    存储 ->> 事件循环: 局部事件循环
+    用户->> 事件循环: 新建窗口
+    事件循环 ->> 窗口: 创建
+    窗口 ->> 存储: load
+    存储 ->> 存储: 读锁(bolock..)
