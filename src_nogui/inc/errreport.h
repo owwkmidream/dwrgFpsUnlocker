@@ -25,5 +25,9 @@ struct ErrorReporter
         }s;
         return &s;
     }
+    static void receive(const std::string& level, const std::string& msg)
+    {
+        instance()->receive(level,msg);
+    }
 };
 #endif //ERRREPORT_H
