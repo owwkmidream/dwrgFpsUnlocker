@@ -7,3 +7,14 @@ function(aux_include_directory dir var)
     set(${var} ${_files} PARENT_SCOPE)  # 使用 PARENT_SCOPE 明确设置外部变量
 endfunction()
 
+function(check_qt_build_type should_be_static)
+    get_target_property(qt_build_type Qt6::Core TYPE)
+    if(NOT qt_build_type)
+        message(WARNING "没有检查到Qt6::Core")
+    endif()
+    if( (should_be_static AND (NOT qt_build_type STREQUAL "STATIC_LIBRARY"))
+        OR
+        ((NOT should_be_static) AND (NOT qt_build_type STREQUAL "SHARED_LIBRARY")) )
+        message(WARNING "不匹配的库类型 ${qt_build_type}")
+    endif()
+endfunction()

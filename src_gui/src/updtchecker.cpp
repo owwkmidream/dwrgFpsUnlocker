@@ -1,6 +1,3 @@
-#include "macroes.h"
-#include "env.h"
-
 #include "errreport.h"
 #include "updtchecker.h"
 #include "updtdialog.h"
@@ -9,7 +6,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
-#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QProcess>
 #include <QMessageBox>
@@ -18,18 +14,23 @@
 #include <QDebug>
 
 
+#ifdef BUILD_SINGLE
+constexpr auto downloadfilename = "dwrgFpsUnlocker.exe";
+constexpr auto updaterfilename = "dwrgFpsUnlocker.exe";
+#else
+constexpr auto downloadfilename = "dwrgFpsUnlocker.zip";
+constexpr auto updaterfilename = "updater.exe";
+#endif
+
 UpdateChecker::UpdateChecker(UpdateDialog &ifm, QObject *parent)
 :QObject(parent), informer(ifm)
 {
     manager = new QNetworkAccessManager(this);
-
-    downloadtimecost = new QElapsedTimer();
 }
 
 UpdateChecker::~UpdateChecker()
 {
-    delete manager;
-    delete downloadtimecost;
+    // manager 注册了 child 所以不用删
 }
 
 std::pair<Version, QString> getLastestVersion(const QJsonArray& releases)
@@ -92,6 +93,7 @@ void UpdateChecker::checkUpdate() {
         //查询完成且没有出错的话↓
 
         QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        reply->deleteLater();
 
         QJsonArray releases
 #ifdef PRE_RELEASE
@@ -105,15 +107,13 @@ void UpdateChecker::checkUpdate() {
 
         if (latestVersion > QApplication::applicationVersion()) {
                 informer.set_version(latestVersion.toQString());
-                informer.show();
 
+                informer.show();
                 informer.raise();
-                QApplication::alert(&informer);
+                informer.activateWindow();
         } else {
             emit noUpdateAvailable();
         }
-
-        reply->deleteLater();
     });
 }
 
@@ -131,16 +131,16 @@ void UpdateChecker::doDownload() {
     }
 
     QString savePath = saveDir.filePath(downloadfilename);
-    QNetworkReply* reply = manager->get(QNetworkRequest(downloadurl));
-    qInfo()<<"开始下载: "<<downloadurl;
-    informer.switch_to_progress_bar();
-    downloadtimecost->start();
-
-    QFile* file = new QFile(savePath, this);
+    QFile* file = new QFile(savePath);
     if (!file->open(QIODevice::WriteOnly)) {
         qWarning() << "分配下载文件失败，路径:"<<savePath;
         return;
     }
+
+    QNetworkReply* reply = manager->get(QNetworkRequest(downloadurl));
+    qInfo()<<"开始下载: "<<downloadurl;
+    informer.switch_to_progress_bar();
+    downloadtimecost.start();
 
     connect(reply, &QNetworkReply::errorOccurred, [&](QNetworkReply::NetworkError error) {
             qWarning()<<"下载出错："<<error;
@@ -151,16 +151,16 @@ void UpdateChecker::doDownload() {
         file->write(reply->readAll());
     });
 
-    connect(reply, &QNetworkReply::downloadProgress, &informer , &UpdateDialog::update_progress);
+    connect(reply, &QNetworkReply::downloadProgress, [&](qint64 inhand, qint64 total){
+                                                            informer.updateProgress(inhand, total, downloadtimecost.elapsed());});
 
     connect(reply, &QNetworkReply::finished, [&]() {
         file->flush();
         file->close();
         file->deleteLater();
+
         reply->deleteLater();
 
-        delete downloadtimecost;
-        downloadtimecost = nullptr;
         if(reply->error() == QNetworkReply::NoError)
             doUpdate(saveDir);
     });
@@ -169,7 +169,7 @@ void UpdateChecker::doDownload() {
 
 void UpdateChecker::doUpdate(const QDir& saveDir)
 {
-#ifndef GUI_BUILD_SINGLE
+#ifndef BUILD_SINGLE
     if (!QFile::exists(QDir::currentPath()+"./updater.exe"))
     {
         QMessageBox::information(nullptr, "出问题", "找不到updater.exe；尝试手动更新？");

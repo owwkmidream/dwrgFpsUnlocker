@@ -54,7 +54,8 @@ FpsSetter FpsSetter::create(DWORD pid)
 
     return {pid};
 }
-//不可拷贝的部分：processHandle（）、autoxtimer（除非可以reset指针）
+
+//不可拷贝的部分：processHandle、autoxtimer（除非可以reset指针）
 FpsSetter::FpsSetter(FpsSetter &&right) noexcept
 :autoxprocesstimer{new autoxtimerproxy(this)}
 {
@@ -184,7 +185,6 @@ bool FpsSetter::checkGameLiving()
 
 bool FpsSetter::openHandle()
 {
-    // question: processHandle的检查是交由调用者还是自己，亦或是防御性
     if(processHandle)
         return true;
 

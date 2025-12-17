@@ -5,9 +5,6 @@
 
 #include <windows.h>
 
-#include <functional>
-#include <iostream>
-
 /** 地址布局（截至2025.7.2）（'[]'表解引用）
  *              ↓ funcaddr
  * [ [PyOS_ReadlineFunctionPointer+0xA758]
@@ -59,8 +56,7 @@ protected:
     autoxtimerproxy* autoxprocesstimer;
 
 public:
-    /* 禁止拷贝的三-五，
-     * 原因：只是因为初始化需要的进程id没写在这里 */ //question: 什么意思？
+    /* 禁止拷贝的三-五，*/
     FpsSetter(DWORD pid);
     FpsSetter():bad(true), processHandle(NULL),autoxprocesstimer(nullptr), processID(0){}
 
@@ -77,7 +73,7 @@ public:
 explicit
     operator bool()const{return !bad;}
 
-    DWORD getGamePID()const//question: 破坏封装吗？
+    DWORD getGamePID()const
     {
         return processID;
     }

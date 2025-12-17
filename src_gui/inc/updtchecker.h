@@ -4,45 +4,33 @@
 
 #include "updtdialog.h"
 
-#include <QNetworkAccessManager>
 #include <QNetworkReply>
-
 #include <QStandardPaths>
 #include <QFile>
+#include <QTimer>
 
 #include <iostream>
-
-#ifdef GUI_BUILD_SINGLE
-constexpr auto downloadfilename = "dwrgFpsUnlocker.exe";
-constexpr auto updaterfilename = "dwrgFpsUnlocker.exe";
-#else
-constexpr auto downloadfilename = "dwrgFpsUnlocker.zip";
-constexpr auto updaterfilename = "updater.exe";
-#endif
 
 class UpdateChecker : public QObject {
 Q_OBJECT
     UpdateDialog& informer;
+    //网络管理器（实际上只会用一次）
+    QNetworkAccessManager* manager;
+    QUrl downloadurl;
+    //本质是记录时刻然后作差，所以不用担心放着影响性能
+    QElapsedTimer downloadtimecost;
 public:
     UpdateChecker(UpdateDialog &ifm, QObject *parent = nullptr);
-    ~UpdateChecker();
+    ~UpdateChecker() override;
 
     void checkUpdate();
 
     void doDownload();
 signals:
     void noUpdateAvailable();
+
 private:
-    //网络管理器（实际上只会用一次）
-    QNetworkAccessManager* manager;
-    //
-    class QElapsedTimer* downloadtimecost;
-
     void doUpdate(const QDir&);
-
-    QUrl downloadurl;
-
-    friend class UpdateDialog;
 };
 
 #endif //UPDATE_CHECKER_H
