@@ -12,6 +12,7 @@
 #include "duplicate.h"
 
 #include <QApplication>
+#include <QSessionManager>
 #include <QSystemTrayIcon>
 #include <QTimer>
 
@@ -95,11 +96,10 @@ int main_setter(int argc, char *argv[])
     /// 此后的ifm 和 uc 都默认失效了
 
     /// 监听跟随启动
-    ProgStartListener listener("dwrg.exe");
-    listener.setPollInterval(3);
+    ProgStartListener listener;
     // //lifemgr生命周期结束后于事件循环，所以引用安全
     QObject::connect(&listener, &ProgStartListener::processStarted, followlaunch);
-    listener.start();
+    listener.start(QStringLiteral("dwrg.exe"), 3);
 
     /// 托盘图标
     AppTray tray;
@@ -124,15 +124,21 @@ int main_setter(int argc, char *argv[])
     });
 
     //不应该直接发dosave，因为不知道uselast
-    QObject::connect(&app, &QApplication::aboutToQuit, []()
+    auto checksave = []()
     {
         using Hipp = Storage<hipp, "hipp">;
         //question: load基于一种假设就是exist&available
         //          可是dosave不要求exist
         //          直接dosave的话我们并不知道是否需要save
         if (Hipp::available() && Hipp::load<&hipp::checked>())//question: 存储available也不等于缓存有数据？
+        {
             Hipp::dosave();
-    });
+        }
+    };
+
+    HiddenWin hidden_win;
+    QObject::connect(&app, &QApplication::commitDataRequest, checksave);
+    QObject::connect(&app, &QApplication::aboutToQuit, checksave);
 
     //预添加更新
     QMetaObject::invokeMethod(&lifemgr.get<UpdateChecker>(), "checkUpdate", Qt::QueuedConnection);
@@ -173,5 +179,3 @@ int main_update(int argc, char *argv[])
     }
     return 0;
 }
-//todo: 失效setter销毁
-//todo: 响应关机
