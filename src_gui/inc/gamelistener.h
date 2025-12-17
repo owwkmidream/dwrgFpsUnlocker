@@ -6,30 +6,26 @@
 #define DWRGFPSUNLOCKER_GAMELISTENER_H
 
 
-#include <QObject>
 #include <QThread>
 #include <QString>
 #include <QAtomicInt>
 
+#include <intsafe.h>
+
+//todo: 添加进程结束监听
 class ProgStartListener : public QObject
 {
     Q_OBJECT
 public:
     explicit ProgStartListener(QObject* parent = nullptr);
-    ~ProgStartListener();
+    ~ProgStartListener() override;
 
-    void setProcessName(const QString& exeName);
-
-    // 轮询间隔（秒），用于 WMI WITHIN 子句。默认 1 秒。
-    void setPollInterval(int seconds);
-
-    // 开始 / 停止监测（非阻塞）
-    Q_INVOKABLE void start();
+    Q_INVOKABLE void start(const QString& exeName, int interval_sec);
     Q_INVOKABLE void stop();
 
     signals:
-        // 当检测到目标进程创建时发射（在 monitor 线程中发出，但通过 queued connection 回到主线程）
-    void processStarted(quint32 pid);
+    // 当检测到目标进程创建时发射（在 monitor 线程中发出，但通过 queued connection 回到主线程）
+    void processStarted(DWORD pid);
 
     // 状态/错误信息（可选）
     void errorOccured(const QString& message);
@@ -37,12 +33,11 @@ public:
     void stopped();
 
 private:
-    QString m_exeName;
-    int m_intervalSeconds;
-
-    QThread m_workerThread;
+    //不知道干嘛的
+    // QThread m_workerThread;
+    //是否在运行
     QAtomicInt m_running;
-
+    //创建过的线程
     QList<QThread*> m_threads;
 };
 

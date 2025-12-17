@@ -7,7 +7,6 @@
 #include <QMetaObject>
 #include <QDebug>
 
-// Windows / COM headers already included in header
 #include <comdef.h>
 #include <csignal>
 #include <Wbemidl.h>
@@ -20,11 +19,11 @@
 // Forward: a tiny IWbemObjectSink implementation that forwards events to a Qt signal via a callback.
 class WmiEventSink : public IWbemObjectSink
 {
-    LONG m_ref;
+    LONG refer_count;
 public:
     using Callback = std::function<void(IWbemClassObject*)>;
 
-    explicit WmiEventSink(Callback cb) : m_ref(1), m_cb(std::move(cb)) {}
+    explicit WmiEventSink(Callback cb) : refer_count(1), callback(std::move(cb)) {}
     virtual ~WmiEventSink() {}
 
     // IUnknown
@@ -40,10 +39,10 @@ public:
         *ppv = nullptr;
         return E_NOINTERFACE;
     }
-    STDMETHODIMP_(ULONG) AddRef() { return InterlockedIncrement(&m_ref); }
+    STDMETHODIMP_(ULONG) AddRef() { return InterlockedIncrement(&refer_count); }
     STDMETHODIMP_(ULONG) Release()
     {
-        ULONG u = InterlockedDecrement(&m_ref);
+        ULONG u = InterlockedDecrement(&refer_count);
         if (u == 0) delete this;
         return u;
     }
@@ -53,10 +52,10 @@ public:
     {
         for (LONG i = 0; i < lObjectCount; ++i)
         {
-            if (apObjArray[i] && m_cb) {
+            if (apObjArray[i] && callback) {
                 // hand over a AddRef'd pointer to callback
                 apObjArray[i]->AddRef();
-                m_cb(apObjArray[i]);
+                callback(apObjArray[i]);
                 apObjArray[i]->Release();
             }
         }
@@ -74,18 +73,19 @@ public:
     }
 
 private:
-    Callback m_cb;
+    Callback callback;
 };
 
-// The actual worker function runs inside a separate thread and does the WMI work.
 static void runWmiMonitor(const QString exeName, int pollInterval,
                           QAtomicInt* running,
                           QObject* signalEmitter /* will receive Qt signals: processStarted(), errorOccured(), started(), stopped() */)
 {
+    //返回值
     HRESULT hr;
 
-    // Initialize COM for multithreaded apartment
-    hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    hr =
+    //初始化com环境
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     if (FAILED(hr)) {
         QMetaObject::invokeMethod(signalEmitter, [hr, signalEmitter]() {
             QString msg = QString("CoInitializeEx failed: 0x%1").arg((unsigned long)hr, 0, 16);
@@ -94,8 +94,9 @@ static void runWmiMonitor(const QString exeName, int pollInterval,
         return;
     }
 
-    // Set general COM security levels
-    hr = CoInitializeSecurity(
+    hr =
+    // 设置安全策略（进程级别，只能初始化一次）
+    CoInitializeSecurity(
         nullptr,
         -1,                          // COM negotiates authentication service
         nullptr,
@@ -115,11 +116,11 @@ static void runWmiMonitor(const QString exeName, int pollInterval,
         return;
     }
 
-    IWbemLocator* pLoc = nullptr;
-    IWbemServices* pSvc = nullptr;
+    IWbemLocator* pLoc = nullptr; //WMI入口对象
+    IWbemServices* pSvc = nullptr; // WMI服务端口
+    hr =
 
-    // Obtain the initial locator to WMI
-    hr = CoCreateInstance(CLSID_WbemLocator, nullptr, CLSCTX_INPROC_SERVER,
+    CoCreateInstance(CLSID_WbemLocator, nullptr, CLSCTX_INPROC_SERVER,
                           IID_IWbemLocator, (LPVOID*)&pLoc);
     if (FAILED(hr)) {
         QMetaObject::invokeMethod(signalEmitter, [hr, signalEmitter]() {
@@ -195,7 +196,7 @@ static void runWmiMonitor(const QString exeName, int pollInterval,
                 VariantInit(&vName);
 
                 if (SUCCEEDED(pTarget->Get(L"ProcessId", 0, &vPid, nullptr, nullptr)) && (vPid.vt == VT_I4 || vPid.vt == VT_UI4)) {
-                    quint32 pid = (quint32)(vPid.ulVal);
+                    DWORD pid = vPid.ulVal;
 
                     // emit Qt signal (queued connection automatically since different thread)
                     QMetaObject::invokeMethod(signalEmitter, [pid, signalEmitter]() {
@@ -237,7 +238,7 @@ static void runWmiMonitor(const QString exeName, int pollInterval,
         Q_EMIT static_cast<ProgStartListener*>(signalEmitter)->started();
     }, Qt::QueuedConnection);
 
-    // Loop while running. We don't block UI because this runs in a worker thread.
+    //循环直至running is false
     while (running->loadAcquire()) {
         // Sleep small amount to be responsive to stop() calls.
         // The WMI async query will deliver events to our sink regardless.
@@ -262,11 +263,8 @@ static void runWmiMonitor(const QString exeName, int pollInterval,
     }, Qt::QueuedConnection);
 }
 
-// ---- ProgStartListener implementation ----
 ProgStartListener::ProgStartListener(QObject* parent)
     : QObject(parent),
-      m_exeName(QStringLiteral("notepad.exe")),
-      m_intervalSeconds(1),
       m_running(false)
 {
     // nothing heavy in ctor
@@ -275,22 +273,11 @@ ProgStartListener::ProgStartListener(QObject* parent)
 ProgStartListener::~ProgStartListener()
 {
     stop();
-    m_workerThread.quit();
-    m_workerThread.wait();
+    // m_workerThread.quit();
+    // m_workerThread.wait();
 }
 
-void ProgStartListener::setProcessName(const QString& exeName)
-{
-    m_exeName = exeName;
-}
-
-void ProgStartListener::setPollInterval(int seconds)
-{
-    if (seconds <= 0) seconds = 1;
-    m_intervalSeconds = seconds;
-}
-
-void ProgStartListener::start()
+void ProgStartListener::start(const QString& exeName, int interval)
 {
     //如果已经启动了
     if (m_running.loadAcquire()) return;
@@ -300,15 +287,21 @@ void ProgStartListener::start()
     // Actually we will invoke QMetaObject::invokeMethod with the same object (this).
     // Start a thread and run the blocking loop inside it via QtConcurrent or lambda.
     // We'll use QThread with lambda
-    QThread* thread = QThread::create([this]() {
-        runWmiMonitor(this->m_exeName, this->m_intervalSeconds, &this->m_running, this);
+    // 创建一个线程，调用runWmiMonitor，填入当前的类记录的变量
+    // auto func = std::bind(runWmiMonitor, std::placeholders::_1, std::placeholders::_2, &m_running, this);
+    QThread* thread = QThread::create([this, &exeName, interval]() {
+        runWmiMonitor(exeName, interval, &m_running, this);
     });
+    // QThread* thread2 = QThread::create(func, exeName, interval);
     thread->start();
 
-    // store thread handle so we can stop/join on destruction
+    // 设置线程的对象名称
     thread->setObjectName(QStringLiteral("ProgStartListenerWorker"));
     // We attach this thread to m_workerThread for lifecycle control
-    m_workerThread.moveToThread(QThread::currentThread()); // just ensure it's valid; we'll keep pointer manually
+    //question: 主线程创建的对象moveto主线程是多此一举的
+    //question: m_workerThread好像根本没有用
+    // m_workerThread.moveToThread(QThread::currentThread()); // just ensure it's valid; we'll keep pointer manually
+    //记录线程
     // keep the pointer by parenting to this object so it won't leak
     m_threads.append(thread);
 }
@@ -320,6 +313,7 @@ void ProgStartListener::stop()
 
     for (QThread* t : m_threads) {
         if (t) {
+            /// 发出退出信号并等待，如果还是没有退出就强行terminate
             t->quit();
             t->wait(2000);
             // if still running, terminate (last resort)
