@@ -1,7 +1,9 @@
-#include "env.h"
 
-#include "updtdialog.h"
 #include "ui_updtdialog.h"
+#include "updtdialog.h"
+#include "updtchecker.h"
+
+#include "winapiutil.h"
 
 #include <QDesktopServices>
 #include <QLayout>
@@ -9,6 +11,7 @@
 #include <QTimer>
 
 UpdateDialog *informer_r = nullptr;
+
 
 UpdateDialog::UpdateDialog(QWidget *parent)
     : QDialog(parent), ui(new Ui::UpdateInformer)
@@ -18,8 +21,6 @@ UpdateDialog::UpdateDialog(QWidget *parent)
     setFixedSize(width(), height());
 
     ui->manual_button->hide();
-
-    connect(ErrorReporter::instance(), &ErrorReporter::report, this, &UpdateDialog::showError, Qt::QueuedConnection);
 }
 
 UpdateDialog::~UpdateDialog()
@@ -53,7 +54,7 @@ void UpdateDialog::switch_to_progress_bar()
     progressBar->show();
 }
 
-void UpdateDialog::update_progress(qint64 bytesReceived, qint64 bytesTotal) {
+void UpdateDialog::updateProgress(qint64 bytesReceived, qint64 bytesTotal, qint64 usedtime) {
     auto val = bytesTotal ? bytesReceived * 100 / bytesTotal : 0;
     progressBar->setValue(val);
 
@@ -61,7 +62,6 @@ void UpdateDialog::update_progress(qint64 bytesReceived, qint64 bytesTotal) {
      * 条件 ① 速率 < 50kB/s
      */
     static enum STAGE{SOON, LONGTIME, SHOWN, HOPEFUL}stage = SOON;
-    auto usedtime = uc->downloadtimecost->elapsed();
     switch (stage)
     {
     case SOON:
@@ -88,18 +88,6 @@ void UpdateDialog::update_progress(qint64 bytesReceived, qint64 bytesTotal) {
 void UpdateDialog::on_manual_button_pressed() {
 //    emit InformerClose();
     QDesktopServices::openUrl(QUrl("https://github.com/tearupheyfish/dwrgFpsUnlocker/releases"));
-}
-
-
-void UpdateDialog::showError(const ErrorReporter::ErrorInfo& einf)
-{
-    QMessageBox::critical(this,einf.level,einf.msg);
-    if (einf.level == ErrorReporter::严重)
-    {
-        qCritical()<<einf.msg;
-        // emit ErrOccured();
-        this->close();
-    }
 }
 
 void UpdateDialog::showManualButton() {

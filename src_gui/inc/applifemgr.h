@@ -8,12 +8,13 @@
 #include <QObject>
 #include <QApplication>
 
+#include "intsafe.h"
+
 class UpdateChecker;
 class FpsDialog;
 class UpdateDialog;
 class FpsSetter;
 
-//todo 滥用信号槽？
 
 class AppLifeManager:public QObject{
     Q_OBJECT
@@ -22,27 +23,32 @@ class AppLifeManager:public QObject{
     std::unique_ptr<UpdateDialog> inform;
     std::vector<FpsDialog*> windows;
 
-    bool isVsetterX, isifmX;
 public:
-    AppLifeManager(QApplication &a, std::unique_ptr<UpdateDialog>&& win4show);
+    AppLifeManager(QApplication &a);
+    ~AppLifeManager() override;
 
     template<class T>
     void trustee(std::unique_ptr<T>&& obj);
     template<class T>
+    void trustee(T* obj);
+    template<class T, typename... Args>
+    requires std::constructible_from<T, Args...>
+    T& delever(Args... args);
+
+    template<class T>
     T& get();
+
+    void foreachwin(const std::function<void(FpsDialog&)>& execution)
+    {
+        for (FpsDialog* window : windows)
+            execution(*window);
+    }
 
 private slots:
     void setterclosed(FpsDialog* that);
-    void informclosed();
+
+    void closeupdate();
     void appquit();
-private:
-    void checkShouldQuit()
-    {
-        if(windows.empty() && isifmX)
-        {
-            appquit();
-        }
-    }
 };
 
 template<> inline

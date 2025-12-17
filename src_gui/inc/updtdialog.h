@@ -22,36 +22,34 @@ class UpdateDialog : public QDialog
 public:
     explicit UpdateDialog(QWidget *parent = nullptr);
     ~UpdateDialog() override;
-    void setRelativeData(UpdateChecker& checker)
+    void setRelativeData(UpdateChecker* checker)
     {
-        uc = &checker;
+        uc = checker;
     }
 
     void set_version(const QString& ver);
 
-    void switch_to_progress_bar();                 // 切换为进度条
-
-signals:
+    void switch_to_progress_bar();  // 切换为进度条
+private:signals:
     void InformerClose();
 
 private slots:
     void on_updatebutton_pressed(); // 更新进度条进度
     void on_manual_button_pressed();
-    void showError(const ErrorReporter::ErrorInfo&);
 
-    void update_progress(qint64 bytesReceived, qint64 bytesTotal);
 
-    friend class UpdateChecker;
-
-    void showWindow(){show();};
+private:
     void showManualButton();
     void hideManualButton();
+    void updateProgress(qint64 bytesReceived, qint64 bytesTotal, qint64 usedTime);
 
     //qt的close()实际上是发送CloseEvent然后hide
     void closeEvent(QCloseEvent *) override
     {
         emit InformerClose();
     }
+
+    friend class UpdateChecker;
 };
 
 #endif // UPDATEINFORMER_H

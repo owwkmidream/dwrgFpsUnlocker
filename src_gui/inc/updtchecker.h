@@ -5,7 +5,6 @@
 #include "updtdialog.h"
 
 #include <QNetworkReply>
-#include <QStandardPaths>
 #include <QFile>
 #include <QTimer>
 
