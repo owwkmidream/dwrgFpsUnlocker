@@ -1,0 +1,90 @@
+stateDiagram-v2
+
+    监听创建:::NOWHERE-->S:跟随启动
+    主动创建:::NOWHERE-->S:双击启动
+    state S{
+        state "失效=未知" as S_P
+    }
+
+
+    state S_初始化 <<choice>>
+    S-->S_初始化:初始化
+
+    S_初始化 --> R: 有效setter
+    S_初始化 --> BW: 无效setter
+
+
+    %%ready
+    state R
+    {
+        state "失效=否，显示帧率=否" as R_P
+    }
+
+    state R_应用 <<choice>>
+    R-->R_应用:(自动)应用
+    R_应用-->RRT:顺利
+    R_应用-->BW:出错
+
+    state R_tag <<choice>>
+    R-->R_tag:点击帧率
+    R_tag-->RRH:顺利
+    R_tag-->BW:出错
+
+    R-->R关闭:::NOWHERE:关闭窗口
+
+
+    %%bad waiting
+    state BW{
+        state "失效=是，自动销毁=是" as B_P
+    }
+
+
+    BW-->BW关闭:::NOWHERE:关闭窗口/\n定时关闭
+    BW-->BH:改帧数
+
+
+    %% ready reading temp
+    state RRT{
+        state "失效=否，显示帧率=是，临时显示=是" as RRT_P
+    }
+
+    state RRT_应用 <<choice>>
+    RRT-->RRT_应用:应用
+    RRT_应用-->RRT:顺利
+    RRT_应用-->BW:出错
+
+    state RRT_帧率 <<choice>>
+    RRT-->RRT_帧率:点击帧率
+    RRT_帧率-->RRH:顺利
+    RRT_帧率-->BW:出错
+
+    RRT-->R:临时显示结束
+
+    RRT-->RRT关闭:::NOWHERE:关闭窗口
+
+    %% read reading hold
+    state RRH{
+        state "失效=否，显示帧率=是，临时显示=否" as RRH_P
+    }
+
+    state RRH_应用 <<choice>>
+    RRH-->RRH_应用:应用
+    RRH_应用-->RRH:顺利
+    RRH_应用-->BW:出错
+
+    state RRH_帧率 <<choice>>
+    RRH-->RRH_帧率:点击帧率
+    RRH_帧率-->R:顺利
+    RRH_帧率-->BW:出错
+
+    RRH-->RRH关闭:::NOWHERE:关闭窗口
+
+    %% bad hold
+    state BH {
+        state "失效=是，自动销毁=否" as BH_P
+    }
+
+    BH-->BW关闭:关闭窗口
+
+
+classDef NOWHERE fill:#0000,stroke:#0000,color:#0000,strike:yellow

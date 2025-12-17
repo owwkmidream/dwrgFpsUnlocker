@@ -10,11 +10,17 @@
     <height>50</height>
    </rect>
   </property>
-  <property name="sizePolicy">
-   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-    <horstretch>0</horstretch>
-    <verstretch>0</verstretch>
-   </sizepolicy>
+  <property name="minimumSize">
+   <size>
+    <width>211</width>
+    <height>50</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>211</width>
+    <height>50</height>
+   </size>
   </property>
   <property name="font">
    <font>
@@ -33,6 +39,12 @@
      <width>56</width>
      <height>26</height>
     </rect>
+   </property>
+   <property name="focusPolicy">
+    <enum>Qt::StrongFocus</enum>
+   </property>
+   <property name="editable">
+    <bool>true</bool>
    </property>
    <item>
     <property name="text">
@@ -62,11 +74,6 @@
    <item>
     <property name="text">
      <string>240</string>
-    </property>
-   </item>
-   <item>
-    <property name="text">
-     <string/>
     </property>
    </item>
   </widget>
@@ -107,11 +114,15 @@ QPushButton:hover {
 	background-color:#cccccc
 }
 
-QPushButton::pressed
+QPushButton:pressed
 {
 	border: none;
 	background-color: #999999;
 }
+     QPushButton:disabled{
+     border: none;
+     background-color: #999999;
+     }
 </string>
    </property>
    <property name="text">
@@ -127,6 +138,9 @@ QPushButton::pressed
      <height>26</height>
     </rect>
    </property>
+   <property name="focusPolicy">
+    <enum>Qt::ClickFocus</enum>
+   </property>
    <property name="toolTip">
     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;实时帧率&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
    </property>
@@ -135,6 +149,9 @@ QPushButton::pressed
    </property>
    <property name="text">
     <string/>
+   </property>
+   <property name="default">
+    <bool>false</bool>
    </property>
   </widget>
   <widget class="QLabel" name="version">

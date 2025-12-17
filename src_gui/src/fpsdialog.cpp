@@ -1,66 +1,54 @@
-#include "ui_fpsdialog.h"
 #include "fpsdialog.h"
-#include "storage.h"
-#include "fpssetter.h"
+
 #include "version.h"
 
-#include <QHotKey>
+#include "errreport.h"
+#include "storage.h"
+#include "fpssetter.h"
 
 #include <QRandomGenerator>
 
-
-FpsDialog::FpsDialog(QWidget *parent)
-    : QDialog(parent), ui(new Ui::dwrgFpsSetter)
-    ,keepupdate(false)
+FpsDialog::FpsDialog(DWORD pid, QWidget *parent)
+    :QDialog(parent), ui(new Ui::dwrgFpsSetter)
+    ,setter(FpsSetter::create(pid)), keepupdate(false), painlesssuicide(nullptr)
 {
     ui->setupUi(this);
 
-    ui->fpscombox->setEditable(true);
-
-    frupdatereminder = new QTimer(ui->curframerate);
-    frupdatereminder->setInterval(1500);
-    connect(frupdatereminder, &QTimer::timeout, this, &FpsDialog::updateFR);
-
-    tmpreadtimer = new QTimer(ui->curframerate);//可能在setter销毁之后触发
-    tmpreadtimer->setSingleShot(true);
-    tmpreadtimer->setInterval(6500);
-    connect(tmpreadtimer, &QTimer::timeout, this, &FpsDialog::tempreadreach);
-
     frpalette = ui->curframerate->palette();
-
     checkchangePalette();
+
+    frupdateremider = new QTimer(ui->curframerate);
+    frupdateremider->setInterval(1500);
+    connect(frupdateremider, &QTimer::timeout, this, &FpsDialog::updateFR);
+
+    tmpreadtimer = new QTimer(ui->curframerate);
+    tmpreadtimer->setSingleShot(true);
+    tmpreadtimer->setInterval(6600);
+    connect(tmpreadtimer, &QTimer::timeout, this, &FpsDialog::dissmissFR);
 
     ui->version->setText(Version(QApplication::applicationVersion()).toQString(2));
 
-    checkload();
+    loadpreset();
 
-    QHotkey* f5 = new QHotkey(QKeySequence(Qt::Key_F5), this);
-
-    connect(f5, &QHotkey::activated, this, [&]()
+    if (!setter)
     {
-        static bool usedefault = false;
-        usedefault = !usedefault;
-        if (usedefault)
-            applyFPS(60);
-        else
+        bebad();
+    }
+    else
+    {
+        setWindowTitle(windowTitle()+'('+QString::number(setter.getGamePID())+')');
+        if (ui->autoappradio->isChecked())
             on_applybutton_pressed();
-    });
-}
-
-FpsDialog* FpsDialog::create(DWORD pid)
-{
-    auto w = new FpsDialog;
-    w->setter =FpsSetter::create(pid);
-    return w;
+    }
 }
 
 FpsDialog::~FpsDialog()
 {
-    saveprofile();
-    delete setter;
+    savepreset();
     delete ui;
 }
 
+//假设调用的时候不是bad
 void FpsDialog::on_applybutton_pressed()
 {
     const static QRegularExpression intfpschecker("^[0-9]+$");
@@ -69,7 +57,7 @@ void FpsDialog::on_applybutton_pressed()
         fpsstr = "60";
     else if (!intfpschecker.match(fpsstr).hasMatch())
     {
-        ErrorReporter::instance()->receive(ErrorReporter::ErrorInfo{"错误", "输入的帧数需要是正整数"});
+        ErrorReporter::receive("错误", "输入的帧数需要是正整数");
         return;
     }
 
@@ -78,25 +66,80 @@ void FpsDialog::on_applybutton_pressed()
 
 void FpsDialog::applyFPS(int fps)
 {
-    setter->setFps(fps);
-    set2tempread();
-    Sleep(QRandomGenerator::global()->bounded(200, 700));
+    if (!setter)
+    {
+        bebad();
+        return;
+    }
+    //在这写过测试代码，写了两行loop.exec()但是只quit了一次 排查2小时 又记一笔 --25.10.13
+    setter.setFps(fps);
+
+    set2tempread();//即便已经在显示帧率了，也得刷新计时器
+
+    //todo: 尝试使用动画化手感方案？
+    ui->applybutton->setEnabled(false);
+    QTimer::singleShot(QRandomGenerator::global()->bounded(200, 700), this,
+        [&]()
+        {
+            ui->applybutton->setEnabled(true);
+        });
 }
 
+void FpsDialog::bebad()
+{
+    bad = true;
+
+    if (tmpreadtimer->isActive())
+        tmpreadtimer->stop();
+
+    keepupdate = false;
+    whileKeepUpdateChange();
+
+    //tag和button失效5s
+    ui->applybutton->setEnabled(false);
+    ui->curframerate->setEnabled(false);
+
+    setWindowTitle(windowTitle() + " (..`)" );
+
+    painlesssuicide = new QTimer(this);
+    painlesssuicide->setInterval(5000);
+    connect(painlesssuicide, &QTimer::timeout, [this](){emit SetterClosed(this);});
+    painlesssuicide->start();
+
+    care2saveI = QObject::connect(ui->fpscombox, &QComboBox::highlighted, this, &FpsDialog::on_fpscombox_touched);
+    care2saveE = QObject::connect(ui->fpscombox, &QComboBox::editTextChanged, this, &FpsDialog::on_fpscombox_touched);
+}
+
+// 假设调用的时候不是bad
 void FpsDialog::on_curframerate_clicked()
 {
-    keepupdate = !keepupdate;
-    whileKeepUpdateChange();
+    if (keepupdate&&tmpreadtimer->isActive())
+    {
+        tmpreadtimer->stop();
+    }else
+    {
+        keepupdate = !keepupdate;
+        whileKeepUpdateChange();
+    }
+}
+
+void FpsDialog::switch_default()
+{
+    usedefault = !usedefault;
+    if (usedefault)
+        applyFPS(60);
+    else
+        on_applybutton_pressed();
 }
 
 void FpsDialog::updateFR()
 {
-    ui->curframerate->setText(QString::number(setter->getFps(), 'f', 1));
-}
-
-void bootfixup()
-{
-//    system(("tryfix "+std::to_string(DYRCX_P_OFFSET)+ ' ' + "dwrgFpsUnlocker.exe").c_str());
+    if (!setter)
+    {
+        bebad();
+        return;
+    }
+    ui->curframerate->setText(QString::number(setter.getFps(), 'f', 1));
 }
 
 void FpsDialog::checkchangePalette()
@@ -117,13 +160,13 @@ void FpsDialog::whileKeepUpdateChange()
 {
     if (keepupdate)
     {
-        setter->pauseAutoX();
-        frupdatereminder->start();
+        setter.keepAccessible();
+        frupdateremider->start();
     }
     else
     {
-        frupdatereminder->stop();
-        setter->continueAutoX();
+        setter.autoRelease();
+        frupdateremider->stop();
     }
     checkchangePalette();
 }
@@ -135,35 +178,24 @@ void FpsDialog::set2tempread()
     tmpreadtimer->start();
 }
 
-void FpsDialog::tempreadreach()
+void FpsDialog::dissmissFR()
 {
     keepupdate = false;
     whileKeepUpdateChange();
 }
 
-/** 有记忆 -> 读取fps和check
- *    ◇ ->
- */
-
-void FpsDialog::saveprofile()const
+void FpsDialog::savepreset()const
 {
     if(! ui->autoappradio->isChecked())return ;
 
-    Storage<hipp> hipp;
+    Storage<hipp, "hipp"> hipp;
     auto fpsstr = ui->fpscombox->currentText();
-    if (fpsstr.isEmpty())
-    {
-        hipp.clear();
-        return ;
-    }
     if(hipp)
     {
         int fps = fpsstr.toInt();
-        bool ret = hipp.save<&hipp::fps>(fps);
-        assert(ret);
+        hipp.save<&hipp::fps>(fps);
         bool checked = ui->autoappradio->isChecked();
-        ret = hipp.save<&hipp::checked>(checked);
-        assert(ret);
+        hipp.save<&hipp::checked>(checked);
     }
 }
 
@@ -177,9 +209,9 @@ T swapEndian(T value) {
     return swapped;
 }
 
-bool FpsDialog::checkload() {
+bool FpsDialog::loadpreset() {
     //如果存在hipp文件 (有过记录)
-    Storage<hipp> hipp;
+    Storage<hipp, "hipp"> hipp;
     if(hipp.exist())
     {
         //如果文件可访问
@@ -198,15 +230,11 @@ bool FpsDialog::checkload() {
             }
             //如果uselast
             ui->fpscombox->setCurrentText(QString::number(fps));
-            if(uselast)
-            {
-                //todo: uselast 紧接 autoapply 还是分开？
-                ui->autoappradio->setChecked(uselast);
-            }
+            ui->autoappradio->setChecked(uselast);
         }
         else
         {
-            ErrorReporter::instance()->receive({"出错", "无法读写存储"});
+            ErrorReporter::receive(ErrorReporter::警告, "无法读写存储");
             return false;
         }
     }
