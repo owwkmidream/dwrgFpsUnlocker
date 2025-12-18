@@ -69,7 +69,7 @@ void UpdateChecker::checkUpdate() {
 #ifdef PRE_RELEASE
     "https://api.github.com/repos/tearupheyfish/dwrgFpsUnlocker/releases"
 #else
-"https://api.github.com/repos/tearupheyfish/dwrgFpsUnlocker/releases/latest"
+    "https://api.github.com/repos/tearupheyfish/dwrgFpsUnlocker/releases/latest"
 #endif
     );
 
@@ -154,7 +154,7 @@ void UpdateChecker::doDownload() {
     connect(reply, &QNetworkReply::downloadProgress, [&](qint64 inhand, qint64 total){
                                                             informer.updateProgress(inhand, total, downloadtimecost.elapsed());});
 
-    connect(reply, &QNetworkReply::finished, [&]() {
+    connect(reply, &QNetworkReply::finished, [=]() {
         file->flush();
         file->close();
         file->deleteLater();
@@ -192,6 +192,7 @@ void UpdateChecker::doUpdate(const QDir& saveDir)
             saveDir.filePath("updater.exe"),
 #else
     if(QProcess::startDetached(
+
             saveDir.filePath(updaterfilename),
 #endif
             {saveDir.filePath(downloadfilename), QDir::currentPath(), QString::number(QCoreApplication::applicationPid())},

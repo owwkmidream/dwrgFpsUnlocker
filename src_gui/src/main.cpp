@@ -15,6 +15,7 @@
 #include <QSessionManager>
 #include <QSystemTrayIcon>
 #include <QTimer>
+#include <QProcess>
 
 #include <memory>
 #include <codecvt>
@@ -152,8 +153,8 @@ int main_setter(int argc, char *argv[])
 [[maybe_unused]]
 int main_update(int argc, char *argv[])
 {
-    std::filesystem::path newExePath = argv[1];
-    std::filesystem::path curDir = argv[2];
+    std::filesystem::path exedownloaded = argv[1];
+    std::filesystem::path dirtoextra = argv[2];
     if (argc > 3)
     {
         int64_t waitpid = std::stoull(argv[3]);
@@ -168,14 +169,18 @@ int main_update(int argc, char *argv[])
 
         CloseHandle(hProcess);
     }
-    auto to = curDir/newExePath.filename();
+
+    auto to = dirtoextra/exedownloaded.filename();
     try
     {
-        std::filesystem::copy(newExePath, to, std::filesystem::copy_options::overwrite_existing);
+        std::filesystem::copy(exedownloaded, to, std::filesystem::copy_options::overwrite_existing);
     }catch (std::exception&e)
     {
-        qCritical()<<e.what();
         return -1;
     }
+
+    auto filetoexecute_q = QString::fromStdString(to.string());
+    QProcess::startDetached(filetoexecute_q);
+
     return 0;
 }

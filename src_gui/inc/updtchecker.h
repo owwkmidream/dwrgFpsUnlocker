@@ -22,11 +22,11 @@ public:
     UpdateChecker(UpdateDialog &ifm, QObject *parent = nullptr);
     ~UpdateChecker() override;
 
-    void checkUpdate();
-
     void doDownload();
 signals:
     void noUpdateAvailable();
+public slots:
+    void checkUpdate();
 
 private:
     void doUpdate(const QDir&);
