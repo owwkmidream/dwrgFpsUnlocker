@@ -5,3 +5,4 @@
 - Qt(qtbase)
 - QHotKey
 - yalantinglibs
+- minizip-ng

@@ -20,12 +20,6 @@ int main()
     std::cout<<std::setiosflags(std::ios::fixed)<<std::setprecision(2);
 
     auto setter = FpsSetter::create();
-    if (!setter)
-    {
-        std::cerr<<"未找到第五人格窗口...\n";
-        Sleep(1500);
-        return -1;
-    }
 
     ConsoleStyleManager csm;
 
@@ -53,6 +47,8 @@ int main()
             exit(-5);
         }
         fps = Hipp::load<&hipp::fps>();
+        if (fps <= 0) fps = 60;
+
         setter.setFps(fps);
         havensettle = true;
         std::cout<<"自动设置上次的帧率值: "<<csm(FOREGROUND_GREEN)<<fps<<'\n';
@@ -74,8 +70,13 @@ int main()
         delete ci;
         ci = nullptr;
 
-        if (fps != -1)
+        //只有typing才表示输入过东西
+        if (input_state == TYPING)
             input_state = RETURN;
+
+        //0表示输入过删了，就算没输
+        if (fps == 0)
+            input_state = YET;
 
         csm.resetStyle();
     });
@@ -112,7 +113,7 @@ int main()
         repeat_fps();
 
         Hipp::save<&hipp::fps>(fps);
-        if (Hipp::available() && Hipp::load<&hipp::checked>())
+        if (Hipp::available())
             Hipp::dosave();
 
         std::cout<<'\n';

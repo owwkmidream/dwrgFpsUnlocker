@@ -290,7 +290,7 @@ template<class Layout, fixed_string storagename>
         using FieldT = Traits::value_type;
 
         constexpr auto idx = ylt::reflection::index_of<Member>();
-        auto key = QString::fromUtf8(keys[ylt::reflection::index_of<Member>()]);
+        auto& key =keys[ylt::reflection::index_of<Member>()];
 
         qDebug()<<"准备读取"<<key;
         //bad的话就只用缓存，有没有记录过不重要
@@ -318,7 +318,7 @@ template<class Layout, fixed_string storagename>
         using Traits = ylt::reflection::internal::member_tratis<decltype(Member)>;
         static_assert(std::is_same_v<std::decay_t<T>, typename Traits::value_type>,"value type must match field type");
 
-        qDebug()<<"准备写入"<<ylt::reflection::name_of(Member);
+        qDebug()<<"准备写入"<<keys[ylt::reflection::index_of<Member>()];
         //我居然吧按偏移写改了那我最初写这个类的意义何在
         //算了天有不测风云照用吧 --25.10.11
         cache.*Member = std::forward<T>(value);

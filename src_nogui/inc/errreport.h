@@ -19,7 +19,7 @@ struct ErrorReporter
             void receive(const std::string& level, const std::string& msg)
             {
                 std::cerr<<level<<':'<<msg<<std::endl;
-                getchar();
+                Sleep(1500);
                 std::exit(1);
             }
         }s;
