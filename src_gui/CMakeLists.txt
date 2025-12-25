@@ -80,8 +80,8 @@ endif()
     install(TARGETS dwrgFpsUnlocker DESTINATION "${DEPLOY_DIR}")
 
 if(NOT BUILD_SINGLE)
-    set(DEPLOY_COMMAND "windeployqt \
-    --debug --no-compiler-runtime --no-system-d3d-compiler --no-system-dxc-compiler \
+    set(DEPLOY_COMMAND "windeployqt6 \
+    --no-compiler-runtime --no-system-d3d-compiler --no-system-dxc-compiler \
     --no-translations --add-plugin-types  platforms \
     --dir ${DEPLOY_DIR} $<TARGET_FILE:dwrgFpsUnlocker>")
 
